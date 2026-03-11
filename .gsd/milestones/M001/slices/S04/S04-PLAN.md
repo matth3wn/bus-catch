@@ -52,7 +52,7 @@
   - Verify: `npm run build` clean, `npx vitest run` all pass, dev server confirms `/manifest.webmanifest` returns valid JSON with `name: "Bus Catch"`, no `/manifest.json` reference in layout.tsx or sw.js
   - Done when: Build clean, tests pass, manifest URL consistent across layout/SW/Next.js generation
 
-- [ ] **T02: Deploy to Vercel and verify production** `est:25m`
+- [x] **T02: Deploy to Vercel and verify production** `est:25m`
   - Why: App needs a public URL to be usable as a PWA and to validate real API routes from a production environment.
   - Files: `package.json` (no changes, just context), Vercel project config (external)
   - Do: Create GitHub repo and push code. Deploy to Vercel via CLI or GitHub integration. Add `SWIFTLY_API_KEY` as optional env var if available. Verify deployed URL loads, manifest is served correctly, API routes return real data.
