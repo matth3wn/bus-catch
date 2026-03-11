@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBusCatch } from "@/lib/use-bus-catch";
-import { StatusBanner } from "@/components/status-banner";
-import { RouteDiagram } from "@/components/route-diagram";
-import { StopCard } from "@/components/stop-card";
-import { InstallPrompt } from "@/components/install-prompt";
+import { GlanceableScreen, RECOMMENDATION_STYLES } from "@/components/glanceable-screen";
+import { DetailPanel } from "@/components/detail-panel";
 
 export default function Home() {
   const state = useBusCatch();
+  const [expanded, setExpanded] = useState(false);
 
   // Register service worker
   useEffect(() => {
@@ -17,51 +16,39 @@ export default function Home() {
     }
   }, []);
 
+  // Dynamic theme-color: update existing <meta name="theme-color"> to match recommendation
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    );
+    if (meta) {
+      const style = RECOMMENDATION_STYLES[state.recommendation.action];
+      meta.content = style.themeColor;
+    }
+  }, [state.recommendation.action]);
+
   return (
-    <main className="min-h-dvh bg-neutral-950 text-white">
-      <StatusBanner recommendation={state.recommendation} />
-
-      {state.gpsError && (
-        <div className="bg-red-900/50 px-4 py-2 text-center text-sm text-red-300">
-          {state.gpsError}
-        </div>
-      )}
-
-      <div className="flex gap-4 px-4 py-6">
-        {/* Route diagram */}
-        <RouteDiagram
-          user={state.user}
-          stopAnalyses={state.stopAnalyses}
-          predictions={state.predictions}
-        />
-
-        {/* Stop cards */}
-        <div className="flex flex-1 flex-col gap-2">
-          {state.stopAnalyses
-            .filter((a) => a.walkSeconds > 0 || a.recommended)
-            .map((analysis) => (
-              <StopCard key={analysis.stop.id} analysis={analysis} />
-            ))}
-
-          {state.stopAnalyses.every((a) => a.walkSeconds <= 0) && !state.loading && (
-            <p className="text-center text-sm text-neutral-500">
-              No stops ahead — you may have passed the last stop
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Footer info */}
-      <div className="px-4 pb-4 text-center text-xs text-neutral-600">
-        {state.lastUpdated && (
-          <p>
-            Updated {Math.round((Date.now() - state.lastUpdated) / 1000)}s ago
-          </p>
-        )}
-        <p className="mt-1">Metro 222 Southbound &middot; Cahuenga Blvd</p>
-      </div>
-
-      <InstallPrompt />
-    </main>
+    <>
+      <GlanceableScreen
+        recommendation={state.recommendation}
+        dataSource={state.dataSource}
+        staleness={state.staleness}
+        dataError={state.dataError}
+        gpsError={state.gpsError}
+        loading={state.loading}
+        onTap={() => setExpanded(true)}
+      />
+      <DetailPanel
+        expanded={expanded}
+        onClose={() => setExpanded(false)}
+        stopAnalyses={state.stopAnalyses}
+        predictions={state.predictions}
+        user={state.user}
+        dataSource={state.dataSource}
+        staleness={state.staleness}
+        lastUpdated={state.lastUpdated}
+        dataError={state.dataError}
+      />
+    </>
   );
 }

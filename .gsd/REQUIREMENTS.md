@@ -4,25 +4,25 @@
 
 ### R001 — Glanceable walk-or-wait decision
 - Class: primary-user-loop
-- Status: active
+- Status: validated
 - Description: When the user pulls out their phone, the screen is dominated by a single full-screen color and word indicating whether to walk or wait. Answer visible in <1 second with zero interaction.
 - Why it matters: This is the entire point of the app. If the user has to read, parse, or interact to get the answer, the app fails its purpose.
 - Source: user
 - Primary owning slice: M001/S03
 - Supporting slices: M001/S01, M001/S02
-- Validation: unmapped
+- Validation: S03 — full-screen color surface fills 390×844 mobile viewport, H1 at 48px (text-5xl) readable at arm's length, zero interaction required. Browser assertions confirm layout, font size, color fill. KEEP_WALKING/WAIT color states structurally verified (code review + type contracts); visual verification of green/amber deferred to S04 real-device.
 - Notes: Green = keep walking, amber = wait at [stop name]. Tap/swipe to expand detail view.
 
 ### R002 — Tap-to-expand detail view
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: Tapping or swiping up on the glanceable screen reveals detailed stop cards, bus arrival times, walk times, and route diagram.
 - Why it matters: Users sometimes want to understand why the recommendation was made, or see the next bus behind this one.
 - Source: user
 - Primary owning slice: M001/S03
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Detail view contains existing stop cards and route diagram, refined for the new layout.
+- Validation: S03 — tap on glanceable screen expands detail panel with route diagram, stop cards, data source badge, staleness info. Close button (44×44px touch target) collapses back. Browser assertions confirm full expand/collapse cycle.
+- Notes: Detail view contains existing stop cards and route diagram, refined for the new layout. Swipe gesture deferred (D016 — tap only for now).
 
 ### R003 — Real-time bus predictions via API
 - Class: core-capability
@@ -92,18 +92,28 @@
 
 ### R009 — Failure visibility
 - Class: failure-visibility
-- Status: active
+- Status: validated
 - Description: When something is wrong (GPS denied, API unreachable, stale data, off-route), the app clearly communicates the issue without breaking the glanceable UX.
 - Why it matters: Silent failures make the user distrust the app. If it says "keep walking" but is actually showing stale data from 5 minutes ago, that's dangerous.
 - Source: inferred
 - Primary owning slice: M001/S02
 - Supporting slices: M001/S03
-- Validation: S02 — BusCatchState extended with dataSource/staleness/dataError fields; staleness detection wired (60s warn, 120s error); type contract verified by build. UI rendering of these fields deferred to S03.
-- Notes: GPS denied → existing gpsError field. Data stale >60s → staleness populated. >120s → dataError populated. Off-route → GPS reading dropped. S03 must render all failure states.
+- Validation: S02 — state fields wired (dataSource/staleness/dataError/gpsError), staleness detection (60s warn, 120s error). S03 — UI renders all failure fields: data source badge always visible on glanceable + detail, staleness warning when >STALENESS_WARNING_SECONDS, gpsError/dataError as alert badges on glanceable screen, dataError in detail panel. Browser-verified with mock state; live failure transitions need S04.
+- Notes: GPS denied → gpsError alert badge. Data stale >60s → staleness warning. >120s → dataError populated + alert. Off-route → GPS reading dropped. All states now rendered in UI.
 
 ## Validated
 
-(none yet)
+### R001 — Glanceable walk-or-wait decision
+- Validated by: S03 browser assertions at mobile viewport (390×844)
+- Proof: full-screen color surface, 48px headline, zero-interaction answer
+
+### R002 — Tap-to-expand detail view
+- Validated by: S03 browser assertions — expand/collapse cycle with correct content
+- Proof: tap expands detail panel, close button collapses, route diagram + stop cards render
+
+### R009 — Failure visibility
+- Validated by: S02 state wiring + S03 UI rendering
+- Proof: data source badge, staleness warning, gpsError/dataError alert badges all render
 
 ## Deferred
 
@@ -157,15 +167,15 @@
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R001 | primary-user-loop | active | M001/S03 | M001/S01, M001/S02 | unmapped |
-| R002 | core-capability | active | M001/S03 | none | unmapped |
+| R001 | primary-user-loop | validated | M001/S03 | M001/S01, M001/S02 | S03 — browser-verified at mobile viewport |
+| R002 | core-capability | validated | M001/S03 | none | S03 — expand/collapse browser-verified |
 | R003 | core-capability | active | M001/S01 | none | S01 — parsing tested, live pending |
 | R004 | continuity | active | M001/S01 | none | S01 — fallback chain tested |
 | R005 | core-capability | active | M001/S02 | none | S02 — geo tested, thresholds tightened; real-walk pending S04 |
 | R006 | core-capability | active | M001/S02 | M001/S01 | S02 — 12 scenario tests; buffer tuning pending S04 |
 | R007 | continuity | active | M001/S01 | M001/S02 | S01 — schedule parser tested |
 | R008 | launchability | active | M001/S04 | none | unmapped |
-| R009 | failure-visibility | active | M001/S02 | M001/S03 | S02 — state fields wired; UI rendering pending S03 |
+| R009 | failure-visibility | validated | M001/S02 | M001/S03 | S02 state + S03 UI rendering verified |
 | R010 | differentiator | deferred | none | none | unmapped |
 | R011 | core-capability | deferred | none | none | unmapped |
 | R012 | anti-feature | out-of-scope | none | none | n/a |
@@ -173,7 +183,7 @@
 
 ## Coverage Summary
 
-- Active requirements: 9
-- Mapped to slices: 9
-- Validated: 0
+- Active requirements: 6
+- Mapped to slices: 6
+- Validated: 3 (R001, R002, R009)
 - Unmapped active requirements: 0

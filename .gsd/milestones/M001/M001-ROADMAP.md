@@ -59,7 +59,7 @@ This milestone is complete only when all are true:
 - [x] **S02: GPS & Calculation Reliability** `risk:medium` `depends:[S01]`
   > After this: Catch calculator produces correct recommendations for known test scenarios, GPS handling is robust against noise, and failure states (stale data, GPS denied, off-route) are properly detected and surfaced. Verified by unit tests and simulated walk scenarios.
 
-- [ ] **S03: Glanceable UX** `risk:medium` `depends:[S02]`
+- [x] **S03: Glanceable UX** `risk:medium` `depends:[S02]`
   > After this: App shows a full-screen color-coded walk-or-wait answer, with tap-to-expand detail view showing stop cards and route diagram. Verified in mobile viewport browser rendering.
 
 - [ ] **S04: Deploy & Validate** `risk:low` `depends:[S03]`
