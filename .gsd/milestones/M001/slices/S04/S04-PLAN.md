@@ -45,7 +45,7 @@
 
 ## Tasks
 
-- [ ] **T01: Fix PWA bugs and verify build** `est:20m`
+- [x] **T01: Fix PWA bugs and verify build** `est:20m`
   - Why: Manifest URL mismatch blocks PWA installability; SW pre-cache 404 causes silent install failure. Must fix before deployment.
   - Files: `app/layout.tsx`, `public/sw.js`
   - Do: Remove hardcoded `<link rel="manifest" href="/manifest.json" />` from layout.tsx (keep apple-touch-icon). Update SW SHELL_ASSETS to use `/manifest.webmanifest` instead of `/manifest.json`. Verify `npm run build` is clean and `npx vitest run` passes. Verify the build output serves manifest at `/manifest.webmanifest`.

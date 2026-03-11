@@ -1,5 +1,5 @@
 const CACHE_NAME = "bus-catch-v1";
-const SHELL_ASSETS = ["/", "/manifest.json"];
+const SHELL_ASSETS = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

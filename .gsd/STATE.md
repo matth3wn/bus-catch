@@ -2,7 +2,7 @@
 
 **Active Milestone:** M001 — Ship It
 **Active Slice:** S04 — Deploy & Validate (planning complete)
-**Active Task:** none — ready for T01
+**Active Task:** T01 complete — ready for T02
 **Phase:** Execution
 
 ## Recent Decisions
@@ -18,7 +18,7 @@
 - S02 ✅ — GPS & Calculation Reliability complete (51 tests pass, build clean)
 - S03 ✅ — Glanceable UX complete (browser-verified at mobile viewport, 51 tests, clean build)
 - S04 🔄 — Deploy & Validate (planned, 3 tasks)
-  - T01 ⬜ — Fix PWA bugs and verify build
+  - T01 ✅ — Fix PWA bugs and verify build
   - T02 ⬜ — Deploy to Vercel and verify production
   - T03 ⬜ — Real-device PWA validation
 
@@ -28,4 +28,4 @@
 - R008 (PWA deployment) — primary owner: S04, addressed by T01+T02+T03
 
 ## Next Action
-Execute T01: Fix PWA bugs and verify build
+Execute T02: Deploy to Vercel and verify production
