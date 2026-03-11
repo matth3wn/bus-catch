@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ROUTE_SHORT_NAME, DIRECTION_ID, SWIFTLY_API_BASE } from "@/lib/constants";
 import { LatLng } from "@/lib/types";
 import { fetchMetroVehiclePositions, VehicleInfo } from "@/lib/metro-fetchers";
@@ -29,7 +29,7 @@ function generateMockVehicles(): VehicleInfo[] {
  * Try Swiftly GTFS-RT vehiclePositions feed. Returns vehicles with source tag.
  * Throws if Swiftly is unavailable, returns an error, or yields no data.
  */
-async function trySwiftly(): Promise<{ vehicles: VehicleInfo[]; source: string }> {
+async function trySwiftly(directionId: number): Promise<{ vehicles: VehicleInfo[]; source: string }> {
   const apiKey = process.env.SWIFTLY_API_KEY;
   if (!apiKey) {
     throw new Error("SWIFTLY_API_KEY not configured");
@@ -53,7 +53,7 @@ async function trySwiftly(): Promise<{ vehicles: VehicleInfo[]; source: string }
   }
 
   const data = (await res.json()) as Record<string, unknown>;
-  const vehicles = parseSwiftlyResponse(data);
+  const vehicles = parseSwiftlyResponse(data, directionId);
 
   if (vehicles.length === 0) {
     throw new Error("Swiftly returned no matching vehicles");
@@ -65,7 +65,7 @@ async function trySwiftly(): Promise<{ vehicles: VehicleInfo[]; source: string }
 /**
  * Parse Swiftly GTFS-RT vehiclePositions JSON into VehicleInfo[].
  */
-function parseSwiftlyResponse(data: Record<string, unknown>): VehicleInfo[] {
+function parseSwiftlyResponse(data: Record<string, unknown>, directionId: number): VehicleInfo[] {
   const vehicles: VehicleInfo[] = [];
 
   const entities = (data.entity || data.Entity || []) as Array<Record<string, unknown>>;
@@ -78,9 +78,9 @@ function parseSwiftlyResponse(data: Record<string, unknown>): VehicleInfo[] {
     if (!trip) continue;
 
     const routeId = String(trip.routeId || trip.route_id || "");
-    const directionId = Number(trip.directionId ?? trip.direction_id ?? -1);
+    const tripDirectionId = Number(trip.directionId ?? trip.direction_id ?? -1);
 
-    if (!routeId.includes(ROUTE_SHORT_NAME) || directionId !== DIRECTION_ID) continue;
+    if (!routeId.includes(ROUTE_SHORT_NAME) || tripDirectionId !== directionId) continue;
 
     const tripId = String(trip.tripId || trip.trip_id || "");
     const vehicleDesc = (vp.vehicle || vp.Vehicle) as Record<string, unknown> | undefined;
@@ -103,13 +103,15 @@ function parseSwiftlyResponse(data: Record<string, unknown>): VehicleInfo[] {
 
 // ---------- GET handler — 3-tier fallback ----------
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const directionId = Number(request.nextUrl.searchParams.get("direction") ?? DIRECTION_ID);
+
   // Tier 1: Swiftly
   const hasSwiftlyKey = !!process.env.SWIFTLY_API_KEY;
   if (hasSwiftlyKey) {
     try {
-      const result = await trySwiftly();
-      console.info("[vehicle-positions] Serving from swiftly");
+      const result = await trySwiftly(directionId);
+      console.info(`[vehicle-positions] Serving from swiftly (direction=${directionId})`);
       return NextResponse.json(result);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -121,8 +123,8 @@ export async function GET() {
 
   // Tier 2: Metro API v2 real-time
   try {
-    const result = await fetchMetroVehiclePositions();
-    console.info("[vehicle-positions] Serving from metro-realtime");
+    const result = await fetchMetroVehiclePositions(directionId);
+    console.info(`[vehicle-positions] Serving from metro-realtime (direction=${directionId})`);
     return NextResponse.json(result);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -130,7 +132,7 @@ export async function GET() {
   }
 
   // Tier 3: Mock fallback (no schedule tier for positions)
-  console.warn("[vehicle-positions] All tiers failed, serving mock data");
+  console.warn(`[vehicle-positions] All tiers failed, serving mock data (direction=${directionId})`);
   return NextResponse.json({
     vehicles: generateMockVehicles(),
     source: "mock",

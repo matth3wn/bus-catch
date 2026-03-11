@@ -1,4 +1,4 @@
-import { BusPrediction, Recommendation, StopCatchAnalysis, UserPosition } from "./types";
+import { BusPrediction, Recommendation, Stop, StopCatchAnalysis, UserPosition } from "./types";
 import { STOPS } from "./route-data";
 import { walkTimeSeconds } from "./geo";
 import { CATCH_BUFFER_SECONDS, DEFAULT_WALKING_SPEED } from "./constants";
@@ -6,15 +6,19 @@ import { CATCH_BUFFER_SECONDS, DEFAULT_WALKING_SPEED } from "./constants";
 /**
  * Pure function: given user position, bus predictions, and current time,
  * compute per-stop catch analysis and overall recommendation.
+ * Accepts optional stops array for direction-aware calculations.
  */
 export function calculateCatch(
   user: UserPosition | null,
   predictions: BusPrediction[],
-  nowSeconds: number
+  nowSeconds: number,
+  stops?: Stop[]
 ): { analyses: StopCatchAnalysis[]; recommendation: Recommendation } {
+  const activeStops = stops ?? STOPS;
+
   if (!user) {
     return {
-      analyses: STOPS.map((stop) => ({
+      analyses: activeStops.map((stop) => ({
         stop,
         walkSeconds: 0,
         busSeconds: null,
@@ -27,7 +31,7 @@ export function calculateCatch(
 
   if (predictions.length === 0) {
     return {
-      analyses: STOPS.map((stop) => ({
+      analyses: activeStops.map((stop) => ({
         stop,
         walkSeconds: walkTimeSeconds(
           user.routeDistance,
@@ -45,7 +49,7 @@ export function calculateCatch(
   const speed = user.walkingSpeed || DEFAULT_WALKING_SPEED;
 
   // For each stop, find the soonest bus prediction
-  const analyses: StopCatchAnalysis[] = STOPS.map((stop) => {
+  const analyses: StopCatchAnalysis[] = activeStops.map((stop) => {
     // Only consider stops ahead of the user
     if (stop.routeDistance <= user.routeDistance) {
       return {

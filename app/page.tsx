@@ -36,6 +36,7 @@ export default function Home() {
         dataError={state.dataError}
         gpsError={state.gpsError}
         loading={state.loading}
+        direction={state.direction}
         onTap={() => setExpanded(true)}
       />
       <DetailPanel
@@ -48,6 +49,7 @@ export default function Home() {
         staleness={state.staleness}
         lastUpdated={state.lastUpdated}
         dataError={state.dataError}
+        direction={state.direction}
       />
     </>
   );

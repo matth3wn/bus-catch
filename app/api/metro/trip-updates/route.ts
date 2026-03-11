@@ -1,22 +1,28 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ROUTE_SHORT_NAME, DIRECTION_ID, SWIFTLY_API_BASE } from "@/lib/constants";
-import { STOPS } from "@/lib/route-data";
+import { STOPS, NORTHBOUND_STOPS } from "@/lib/route-data";
 import { BusPrediction } from "@/lib/types";
 import {
   fetchMetroTripUpdates,
   fetchSchedulePredictions,
 } from "@/lib/metro-fetchers";
 
-const STOP_IDS = new Set(STOPS.map((s) => s.id));
+const SOUTHBOUND_STOP_IDS = new Set(STOPS.map((s) => s.id));
+const NORTHBOUND_STOP_IDS = new Set(NORTHBOUND_STOPS.map((s) => s.id));
+
+function getStopIds(directionId: number): Set<string> {
+  return directionId === 0 ? NORTHBOUND_STOP_IDS : SOUTHBOUND_STOP_IDS;
+}
 
 // ---------- Mock fallback ----------
 
-function generateMockPredictions(): BusPrediction[] {
+function generateMockPredictions(directionId: number = DIRECTION_ID): BusPrediction[] {
   const now = Math.floor(Date.now() / 1000);
   const predictions: BusPrediction[] = [];
+  const stops = directionId === 0 ? NORTHBOUND_STOPS : STOPS;
 
   const baseBusArrival = now + 180;
-  STOPS.forEach((stop, i) => {
+  stops.forEach((stop, i) => {
     predictions.push({
       tripId: "mock-trip-001",
       vehicleId: "mock-vehicle-001",
@@ -26,7 +32,7 @@ function generateMockPredictions(): BusPrediction[] {
   });
 
   const baseBus2 = now + 900;
-  STOPS.forEach((stop, i) => {
+  stops.forEach((stop, i) => {
     predictions.push({
       tripId: "mock-trip-002",
       vehicleId: "mock-vehicle-002",
@@ -44,7 +50,7 @@ function generateMockPredictions(): BusPrediction[] {
  * Try Swiftly GTFS-RT feed. Returns predictions with source tag.
  * Throws if Swiftly is unavailable, returns an error, or yields no data.
  */
-async function trySwiftly(): Promise<{ predictions: BusPrediction[]; source: string }> {
+async function trySwiftly(directionId: number): Promise<{ predictions: BusPrediction[]; source: string }> {
   const apiKey = process.env.SWIFTLY_API_KEY;
   if (!apiKey) {
     throw new Error("SWIFTLY_API_KEY not configured");
@@ -69,7 +75,7 @@ async function trySwiftly(): Promise<{ predictions: BusPrediction[]; source: str
   }
 
   const data = (await res.json()) as Record<string, unknown>;
-  const predictions = parseSwiftlyResponse(data);
+  const predictions = parseSwiftlyResponse(data, directionId);
 
   if (predictions.length === 0) {
     throw new Error("Swiftly returned no matching predictions");
@@ -81,7 +87,7 @@ async function trySwiftly(): Promise<{ predictions: BusPrediction[]; source: str
 /**
  * Parse Swiftly GTFS-RT tripUpdates JSON into BusPrediction[].
  */
-function parseSwiftlyResponse(data: Record<string, unknown>): BusPrediction[] {
+function parseSwiftlyResponse(data: Record<string, unknown>, directionId: number): BusPrediction[] {
   const predictions: BusPrediction[] = [];
 
   const entities = (data.entity || data.Entity || []) as Array<Record<string, unknown>>;
@@ -94,9 +100,9 @@ function parseSwiftlyResponse(data: Record<string, unknown>): BusPrediction[] {
     if (!trip) continue;
 
     const routeId = String(trip.routeId || trip.route_id || "");
-    const directionId = Number(trip.directionId ?? trip.direction_id ?? -1);
+    const tripDirectionId = Number(trip.directionId ?? trip.direction_id ?? -1);
 
-    if (!routeId.includes(ROUTE_SHORT_NAME) || directionId !== DIRECTION_ID) continue;
+    if (!routeId.includes(ROUTE_SHORT_NAME) || tripDirectionId !== directionId) continue;
 
     const tripId = String(trip.tripId || trip.trip_id || "");
     const vehicleDescriptor = (tripUpdate.vehicle || tripUpdate.Vehicle) as Record<string, unknown> | undefined;
@@ -106,7 +112,7 @@ function parseSwiftlyResponse(data: Record<string, unknown>): BusPrediction[] {
 
     for (const stu of stopTimeUpdates) {
       const stopId = String(stu.stopId || stu.stop_id || "");
-      if (!STOP_IDS.has(stopId)) continue;
+      if (!getStopIds(directionId).has(stopId)) continue;
 
       const arrival = (stu.arrival || stu.Arrival) as Record<string, unknown> | undefined;
       const departure = (stu.departure || stu.Departure) as Record<string, unknown> | undefined;
@@ -125,13 +131,15 @@ function parseSwiftlyResponse(data: Record<string, unknown>): BusPrediction[] {
 
 // ---------- GET handler — 4-tier fallback ----------
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const directionId = Number(request.nextUrl.searchParams.get("direction") ?? DIRECTION_ID);
+
   // Tier 1: Swiftly
   const hasSwiftlyKey = !!process.env.SWIFTLY_API_KEY;
   if (hasSwiftlyKey) {
     try {
-      const result = await trySwiftly();
-      console.info("[trip-updates] Serving from swiftly");
+      const result = await trySwiftly(directionId);
+      console.info(`[trip-updates] Serving from swiftly (direction=${directionId})`);
       return NextResponse.json(result);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -143,8 +151,8 @@ export async function GET() {
 
   // Tier 2: Metro API v2 real-time
   try {
-    const result = await fetchMetroTripUpdates();
-    console.info("[trip-updates] Serving from metro-realtime");
+    const result = await fetchMetroTripUpdates(directionId);
+    console.info(`[trip-updates] Serving from metro-realtime (direction=${directionId})`);
     return NextResponse.json(result);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -153,8 +161,8 @@ export async function GET() {
 
   // Tier 3: Schedule
   try {
-    const result = await fetchSchedulePredictions();
-    console.info("[trip-updates] Serving from schedule");
+    const result = await fetchSchedulePredictions(directionId);
+    console.info(`[trip-updates] Serving from schedule (direction=${directionId})`);
     return NextResponse.json(result);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -162,9 +170,9 @@ export async function GET() {
   }
 
   // Tier 4: Mock fallback
-  console.warn("[trip-updates] All tiers failed, serving mock data");
+  console.warn(`[trip-updates] All tiers failed, serving mock data (direction=${directionId})`);
   return NextResponse.json({
-    predictions: generateMockPredictions(),
+    predictions: generateMockPredictions(directionId),
     source: "mock",
   });
 }

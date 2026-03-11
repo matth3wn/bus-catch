@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { calculateCatch } from "@/lib/catch-calculator";
-import { STOPS, TOTAL_ROUTE_DISTANCE } from "@/lib/route-data";
+import { STOPS, TOTAL_ROUTE_DISTANCE, NORTHBOUND_STOPS, NORTHBOUND_TOTAL_ROUTE_DISTANCE } from "@/lib/route-data";
 import { CATCH_BUFFER_SECONDS, DEFAULT_WALKING_SPEED } from "@/lib/constants";
 import type { BusPrediction, UserPosition } from "@/lib/types";
 
@@ -217,5 +217,76 @@ describe("calculateCatch — edge cases", () => {
     // Should use the 200s arrival, not 600s
     expect(lankershimAnalysis.busSeconds).toBe(200);
     expect(lankershimAnalysis.catchable).toBe(true);
+  });
+});
+
+// ---------- Northbound scenarios ----------
+
+describe("calculateCatch — northbound", () => {
+  // Northbound stops: 9138 (Lakeridge) → 554 (Barham) → 558 (Oakshire) → 548 (Universal Studios) → 556 (Broadlawn) → 551 (Regal) → 30002 (Station)
+  const NB_LAKERIDGE = NORTHBOUND_STOPS.find((s) => s.id === "9138")!;
+  const NB_BARHAM = NORTHBOUND_STOPS.find((s) => s.id === "554")!;
+  const NB_STATION = NORTHBOUND_STOPS.find((s) => s.id === "30002")!;
+
+  function makeNorthboundUser(
+    routeDistance: number,
+    speed: number = DEFAULT_WALKING_SPEED
+  ): UserPosition {
+    return {
+      position: { lat: 34.126, lng: -118.344 },
+      routeDistance,
+      walkingSpeed: speed,
+      accuracy: 10,
+      timestamp: NOW,
+    };
+  }
+
+  function makeNBPrediction(
+    stopId: string,
+    secondsFromNow: number,
+    tripId = "nb-trip-1"
+  ): BusPrediction {
+    return {
+      tripId,
+      stopId,
+      arrivalTime: NOW + secondsFromNow,
+    };
+  }
+
+  it("uses northbound stops when passed as parameter", () => {
+    const user = makeNorthboundUser(0);
+    const preds = [makeNBPrediction("554", 600)]; // Bus at Barham in 10 min
+    const { analyses } = calculateCatch(user, preds, NOW, NORTHBOUND_STOPS);
+
+    // Should have 7 stops (northbound), not 8 (southbound)
+    expect(analyses).toHaveLength(7);
+    expect(analyses[0].stop.id).toBe("9138"); // Lakeridge (first northbound stop)
+    expect(analyses[6].stop.id).toBe("30002"); // Station (last northbound stop)
+  });
+
+  it("WAIT when northbound bus arrives in time at Barham", () => {
+    // User near Lakeridge (start of northbound walk), bus at Barham in 10 min
+    const user = makeNorthboundUser(NB_LAKERIDGE.routeDistance + 10);
+    const preds = [makeNBPrediction("554", 600)];
+    const { recommendation } = calculateCatch(user, preds, NOW, NORTHBOUND_STOPS);
+
+    // Barham is ~500m from Lakeridge. At 1.4m/s ≈ 357s walk. 600s bus - 357s walk = 243s margin > 90s buffer.
+    expect(recommendation.action).toBe("WAIT");
+    expect(recommendation.waitStop?.id).toBe("554");
+  });
+
+  it("KEEP_WALKING when northbound bus arrives too soon", () => {
+    // User near Lakeridge, bus at Station (far away) in 60s — can't catch it
+    const user = makeNorthboundUser(NB_LAKERIDGE.routeDistance + 10);
+    const preds = [makeNBPrediction("30002", 60)];
+    const { recommendation } = calculateCatch(user, preds, NOW, NORTHBOUND_STOPS);
+
+    expect(recommendation.action).toBe("KEEP_WALKING");
+  });
+
+  it("NO_DATA when no predictions for northbound stops", () => {
+    const user = makeNorthboundUser(NB_LAKERIDGE.routeDistance + 10);
+    const { recommendation } = calculateCatch(user, [], NOW, NORTHBOUND_STOPS);
+    expect(recommendation.action).toBe("NO_DATA");
   });
 });

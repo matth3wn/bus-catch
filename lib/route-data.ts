@@ -123,6 +123,89 @@ export const STOPS: Stop[] = [
 /** Total walking distance from start to end of route in meters */
 export const TOTAL_ROUTE_DISTANCE = WALKING_ROUTE[WALKING_ROUTE.length - 1].cumulativeDistance;
 
+/**
+ * Northbound walking route — reversed southbound polyline.
+ * User walks north from ~Cahuenga/Lakeridge back to Universal City station.
+ * Cumulative distances recomputed from the new start point.
+ */
+export const NORTHBOUND_WALKING_ROUTE: RoutePoint[] = computeCumulativeDistances(
+  [...WALKING_ROUTE].reverse().map((p) => ({ lat: p.lat, lng: p.lng }))
+);
+
+/**
+ * Route 222 northbound stops along Cahuenga Blvd (direction_id=0).
+ * Ordered south→north (walking direction: from work back to station).
+ * Stop IDs are different from southbound (opposite side of street),
+ * except 30002 (Universal City station) which is shared.
+ */
+export const NORTHBOUND_STOPS: Stop[] = [
+  {
+    id: "9138",
+    name: "Cahuenga / Lakeridge",
+    position: { lat: 34.124128, lng: -118.342234 },
+    routeDistance: 0,
+  },
+  {
+    id: "554",
+    name: "Cahuenga / Barham",
+    position: { lat: 34.128667, lng: -118.347312 },
+    routeDistance: 0,
+  },
+  {
+    id: "558",
+    name: "Cahuenga / Oakshire",
+    position: { lat: 34.130549, lng: -118.350062 },
+    routeDistance: 0,
+  },
+  {
+    id: "548",
+    name: "Cahuenga / Universal Studios",
+    position: { lat: 34.132332, lng: -118.353024 },
+    routeDistance: 0,
+  },
+  {
+    id: "556",
+    name: "Cahuenga / Broadlawn",
+    position: { lat: 34.132970, lng: -118.355664 },
+    routeDistance: 0,
+  },
+  {
+    id: "551",
+    name: "Cahuenga / Regal Pl",
+    position: { lat: 34.134975, lng: -118.360751 },
+    routeDistance: 0,
+  },
+  {
+    id: "30002",
+    name: "Universal / Studio City Station",
+    position: { lat: 34.139051, lng: -118.363171 },
+    routeDistance: 0,
+  },
+];
+
+export const NORTHBOUND_TOTAL_ROUTE_DISTANCE =
+  NORTHBOUND_WALKING_ROUTE[NORTHBOUND_WALKING_ROUTE.length - 1].cumulativeDistance;
+
+/** Direction-aware route data accessor */
+export function getRouteData(directionId: number): {
+  walkingRoute: RoutePoint[];
+  stops: Stop[];
+  totalDistance: number;
+} {
+  if (directionId === 0) {
+    return {
+      walkingRoute: NORTHBOUND_WALKING_ROUTE,
+      stops: NORTHBOUND_STOPS,
+      totalDistance: NORTHBOUND_TOTAL_ROUTE_DISTANCE,
+    };
+  }
+  return {
+    walkingRoute: WALKING_ROUTE,
+    stops: STOPS,
+    totalDistance: TOTAL_ROUTE_DISTANCE,
+  };
+}
+
 // --- helpers used at module load time ---
 
 function haversineDistance(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -146,13 +229,13 @@ function computeCumulativeDistances(points: { lat: number; lng: number }[]): Rou
 }
 
 // Compute stop route distances by projecting each stop onto nearest segment
-function snapToRouteDistance(point: { lat: number; lng: number }): number {
+function snapToRouteDistance(point: { lat: number; lng: number }, route: RoutePoint[]): number {
   let bestDist = Infinity;
   let bestRouteDist = 0;
 
-  for (let i = 0; i < WALKING_ROUTE.length - 1; i++) {
-    const a = WALKING_ROUTE[i];
-    const b = WALKING_ROUTE[i + 1];
+  for (let i = 0; i < route.length - 1; i++) {
+    const a = route[i];
+    const b = route[i + 1];
     const segLen = b.cumulativeDistance - a.cumulativeDistance;
     if (segLen === 0) continue;
 
@@ -174,7 +257,12 @@ function snapToRouteDistance(point: { lat: number; lng: number }): number {
   return bestRouteDist;
 }
 
-// Initialize stop route distances
+// Initialize stop route distances (southbound)
 for (const stop of STOPS) {
-  stop.routeDistance = snapToRouteDistance(stop.position);
+  stop.routeDistance = snapToRouteDistance(stop.position, WALKING_ROUTE);
+}
+
+// Initialize stop route distances (northbound)
+for (const stop of NORTHBOUND_STOPS) {
+  stop.routeDistance = snapToRouteDistance(stop.position, NORTHBOUND_WALKING_ROUTE);
 }

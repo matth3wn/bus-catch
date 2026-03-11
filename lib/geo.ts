@@ -24,18 +24,20 @@ export interface SnapResult {
   offRouteDistance: number;
 }
 
-/** Snap a GPS position to the nearest point on the walking route polyline */
-export function snapToRoute(position: LatLng): SnapResult {
+/** Snap a GPS position to the nearest point on a walking route polyline.
+ *  Defaults to WALKING_ROUTE (southbound) for backward compatibility. */
+export function snapToRoute(position: LatLng, route?: RoutePoint[]): SnapResult {
+  const activeRoute = route ?? WALKING_ROUTE;
   let bestDist = Infinity;
   let bestResult: SnapResult = {
-    point: WALKING_ROUTE[0],
+    point: activeRoute[0],
     routeDistance: 0,
     offRouteDistance: Infinity,
   };
 
-  for (let i = 0; i < WALKING_ROUTE.length - 1; i++) {
-    const a = WALKING_ROUTE[i];
-    const b = WALKING_ROUTE[i + 1];
+  for (let i = 0; i < activeRoute.length - 1; i++) {
+    const a = activeRoute[i];
+    const b = activeRoute[i + 1];
     const segLen = b.cumulativeDistance - a.cumulativeDistance;
     if (segLen === 0) continue;
 

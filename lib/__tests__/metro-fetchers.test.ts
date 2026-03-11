@@ -188,6 +188,14 @@ describe("parseMetroTripDetail", () => {
     const predictions = parseMetroTripDetail(null as unknown as unknown[]);
     expect(predictions).toEqual([]);
   });
+
+  it("returns northbound predictions when direction=0 is passed", () => {
+    const predictions = parseMetroTripDetail(TRIP_DETAIL_FIXTURE, 0);
+    // The fixture has one northbound trip (t_222_099, direction_id=0)
+    expect(predictions).toHaveLength(1);
+    expect(predictions[0].tripId).toBe("t_222_099");
+    expect(predictions[0].stopId).toBe("9133");
+  });
 });
 
 // ---------- parseScheduleResponse ----------
@@ -258,16 +266,32 @@ describe("parseScheduleResponse", () => {
     expect(date2600.getMinutes()).toBe(0);
   });
 
-  it("filters by direction_id=1 (southbound)", () => {
-    // If fixture has direction_id=1, predictions should be non-empty
+  it("filters by direction_id parameter (default=1 southbound)", () => {
+    // If fixture has direction_id=1 and we pass direction=1, predictions should be non-empty
     const referenceDate = new Date("2026-03-11T05:00:00-08:00");
-    const predictions = parseScheduleResponse(ROUTE_STOPS_FIXTURE, referenceDate);
+    const predictions = parseScheduleResponse(ROUTE_STOPS_FIXTURE, referenceDate, 1);
     expect(predictions.length).toBeGreaterThan(0);
 
-    // If we change the fixture direction_id to 0, should get empty
-    const northboundFixture = { ...ROUTE_STOPS_FIXTURE, direction_id: 0 };
-    const northboundPredictions = parseScheduleResponse(northboundFixture, referenceDate);
-    expect(northboundPredictions).toEqual([]);
+    // Same fixture but requesting direction=0 should get empty (fixture is direction_id=1)
+    const predictions0 = parseScheduleResponse(ROUTE_STOPS_FIXTURE, referenceDate, 0);
+    expect(predictions0).toEqual([]);
+  });
+
+  it("parses northbound schedule when direction=0 is passed", () => {
+    const northboundFixture = {
+      direction_id: 0,
+      stops: [
+        {
+          stop_id: "554",
+          stop_name: "Cahuenga / Barham",
+          departure_times: ["06:15:00", "13:00:00", "22:45:00"],
+        },
+      ],
+    };
+    const referenceDate = new Date("2026-03-11T05:00:00-08:00");
+    const predictions = parseScheduleResponse(northboundFixture, referenceDate, 0);
+    expect(predictions.length).toBe(3);
+    expect(predictions[0].stopId).toBe("554");
   });
 
   it("returns empty array for empty stops", () => {

@@ -1,6 +1,6 @@
 import { BusPrediction, LatLng } from "./types";
 import { METRO_API_BASE, AGENCY_ID, ROUTE_CODE, DIRECTION_ID } from "./constants";
-import { STOPS } from "./route-data";
+import { STOPS, NORTHBOUND_STOPS } from "./route-data";
 
 // ---------- Types ----------
 
@@ -11,8 +11,13 @@ export interface VehicleInfo {
   timestamp: number;
 }
 
-// Stop IDs we care about (route 222 southbound stops)
-const STOP_IDS = new Set(STOPS.map((s) => s.id));
+// Stop IDs per direction
+const SOUTHBOUND_STOP_IDS = new Set(STOPS.map((s) => s.id));
+const NORTHBOUND_STOP_IDS = new Set(NORTHBOUND_STOPS.map((s) => s.id));
+
+function getStopIds(directionId: number): Set<string> {
+  return directionId === 0 ? NORTHBOUND_STOP_IDS : SOUTHBOUND_STOP_IDS;
+}
 
 // ---------- Day Type ----------
 
@@ -30,7 +35,7 @@ export function getDayType(date: Date): "weekday" | "saturday" | "sunday" {
 
 /**
  * Parse Metro API v2 trip_detail response into BusPrediction[].
- * Filters to direction_id=1 (southbound). Extracts stop_time_updates
+ * Filters by direction_id. Extracts stop_time_updates
  * as predictions and vehicle position data.
  *
  * Input shape (from api.metro.net): array of trip objects:
@@ -40,7 +45,7 @@ export function getDayType(date: Date): "weekday" | "saturday" | "sunday" {
  *   stop_time_updates: [{ stop_id, arrival: { time } }]
  * }]
  */
-export function parseMetroTripDetail(data: unknown[]): BusPrediction[] {
+export function parseMetroTripDetail(data: unknown[], directionId: number = DIRECTION_ID): BusPrediction[] {
   if (!Array.isArray(data)) return [];
 
   const predictions: BusPrediction[] = [];
@@ -49,8 +54,8 @@ export function parseMetroTripDetail(data: unknown[]): BusPrediction[] {
     if (!trip || typeof trip !== "object") continue;
 
     const t = trip as Record<string, unknown>;
-    const directionId = Number(t.direction_id ?? -1);
-    if (directionId !== DIRECTION_ID) continue;
+    const tripDirection = Number(t.direction_id ?? -1);
+    if (tripDirection !== directionId) continue;
 
     const tripId = String(t.trip_id || "");
     const vehicle = t.vehicle as Record<string, unknown> | undefined;
@@ -85,9 +90,9 @@ export function parseMetroTripDetail(data: unknown[]): BusPrediction[] {
 
 /**
  * Extract vehicle positions from Metro API v2 trip_detail response.
- * Each trip with direction_id=1 and a valid vehicle.position yields one VehicleInfo.
+ * Each trip with matching direction_id and a valid vehicle.position yields one VehicleInfo.
  */
-export function parseMetroVehiclePositions(data: unknown[]): VehicleInfo[] {
+export function parseMetroVehiclePositions(data: unknown[], directionId: number = DIRECTION_ID): VehicleInfo[] {
   if (!Array.isArray(data)) return [];
 
   const vehicles: VehicleInfo[] = [];
@@ -96,8 +101,8 @@ export function parseMetroVehiclePositions(data: unknown[]): VehicleInfo[] {
     if (!trip || typeof trip !== "object") continue;
 
     const t = trip as Record<string, unknown>;
-    const directionId = Number(t.direction_id ?? -1);
-    if (directionId !== DIRECTION_ID) continue;
+    const tripDirection = Number(t.direction_id ?? -1);
+    if (tripDirection !== directionId) continue;
 
     const tripId = String(t.trip_id || "");
     const vehicle = t.vehicle as Record<string, unknown> | undefined;
@@ -125,16 +130,16 @@ export function parseMetroVehiclePositions(data: unknown[]): VehicleInfo[] {
  * Parse Metro API v2 route_stops response into schedule-based BusPrediction[].
  * Converts HH:MM:SS departure times to epoch seconds relative to referenceDate.
  * Handles GTFS >24:00 times (after-midnight service).
- * Filters to direction_id=1 and future times only.
+ * Filters by direction_id and future times only.
  *
  * Input shape: { direction_id, stops: [{ stop_id, stop_name, departure_times: ["HH:MM:SS"] }] }
  */
-export function parseScheduleResponse(data: unknown, referenceDate: Date): BusPrediction[] {
+export function parseScheduleResponse(data: unknown, referenceDate: Date, directionId: number = DIRECTION_ID): BusPrediction[] {
   if (!data || typeof data !== "object") return [];
 
   const d = data as Record<string, unknown>;
-  const directionId = Number(d.direction_id ?? -1);
-  if (directionId !== DIRECTION_ID) return [];
+  const entryDirection = Number(d.direction_id ?? -1);
+  if (entryDirection !== directionId) return [];
 
   const stops = (d.stops || []) as Array<Record<string, unknown>>;
   if (!stops.length) return [];
@@ -210,7 +215,7 @@ function parseTimeToEpoch(timeStr: string, startOfDayEpoch: number): number | nu
  * Returns parsed predictions with source tag.
  * Throws on HTTP error or empty predictions (caller should catch and fall through).
  */
-export async function fetchMetroTripUpdates(): Promise<{
+export async function fetchMetroTripUpdates(directionId: number = DIRECTION_ID): Promise<{
   predictions: BusPrediction[];
   source: string;
 }> {
@@ -230,11 +235,11 @@ export async function fetchMetroTripUpdates(): Promise<{
   }
 
   const data = await res.json();
-  const predictions = parseMetroTripDetail(data);
+  const predictions = parseMetroTripDetail(data, directionId);
 
   if (predictions.length === 0) {
     console.info(
-      `[metro-fetchers] Empty real-time predictions from ${url} — normal off-hours behavior`
+      `[metro-fetchers] Empty real-time predictions from ${url} (direction=${directionId}) — normal off-hours behavior`
     );
     throw new Error(`[metro-fetchers] No real-time predictions from ${url}`);
   }
@@ -247,7 +252,7 @@ export async function fetchMetroTripUpdates(): Promise<{
  * Returns parsed vehicles with source tag.
  * Throws on HTTP error or empty vehicles.
  */
-export async function fetchMetroVehiclePositions(): Promise<{
+export async function fetchMetroVehiclePositions(directionId: number = DIRECTION_ID): Promise<{
   vehicles: VehicleInfo[];
   source: string;
 }> {
@@ -267,11 +272,11 @@ export async function fetchMetroVehiclePositions(): Promise<{
   }
 
   const data = await res.json();
-  const vehicles = parseMetroVehiclePositions(data);
+  const vehicles = parseMetroVehiclePositions(data, directionId);
 
   if (vehicles.length === 0) {
     console.info(
-      `[metro-fetchers] No vehicle positions from ${url} — normal off-hours behavior`
+      `[metro-fetchers] No vehicle positions from ${url} (direction=${directionId}) — normal off-hours behavior`
     );
     throw new Error(`[metro-fetchers] No vehicle positions from ${url}`);
   }
@@ -284,7 +289,7 @@ export async function fetchMetroVehiclePositions(): Promise<{
  * Returns parsed predictions with source tag.
  * Throws on HTTP error or empty predictions.
  */
-export async function fetchSchedulePredictions(): Promise<{
+export async function fetchSchedulePredictions(directionId: number = DIRECTION_ID): Promise<{
   predictions: BusPrediction[];
   source: string;
 }> {
@@ -306,10 +311,10 @@ export async function fetchSchedulePredictions(): Promise<{
   }
 
   const data = await res.json();
-  const predictions = parseScheduleResponse(data, now);
+  const predictions = parseScheduleResponse(data, now, directionId);
 
   if (predictions.length === 0) {
-    console.error(`[metro-fetchers] No schedule predictions from ${url}`);
+    console.error(`[metro-fetchers] No schedule predictions from ${url} (direction=${directionId})`);
     throw new Error(`[metro-fetchers] No schedule predictions from ${url}`);
   }
 

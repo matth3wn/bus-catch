@@ -71,4 +71,6 @@ export interface BusCatchState {
   staleness: number | null;
   /** Error message when data is stale or fetch fails, null when healthy */
   dataError: string | null;
+  /** Detected walking direction, or null if not yet determined */
+  direction: "northbound" | "southbound" | null;
 }

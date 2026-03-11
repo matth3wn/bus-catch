@@ -26,7 +26,14 @@ export const SPEED_HISTORY_WINDOW = 30;
 export const ROUTE_ID = "222-13196";
 export const ROUTE_SHORT_NAME = "222";
 export const DIRECTION_ID = 1; // southbound
+export const NORTHBOUND_DIRECTION_ID = 0; // northbound
 export const SHAPE_ID = "2220081";
+
+/** Minimum displacement in meters to determine walking direction */
+export const DIRECTION_MIN_DISPLACEMENT = 30;
+
+/** Minimum number of GPS samples before attempting direction detection */
+export const DIRECTION_MIN_SAMPLES = 3;
 
 /** Swiftly API base URL for LA Metro */
 export const SWIFTLY_API_BASE = "https://api.goswift.ly/real-time/lacmta";

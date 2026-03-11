@@ -21,6 +21,7 @@ interface DetailPanelProps {
   staleness: number | null;
   lastUpdated: number | null;
   dataError: string | null;
+  direction: "northbound" | "southbound" | null;
 }
 
 export function DetailPanel({
@@ -33,6 +34,7 @@ export function DetailPanel({
   staleness,
   lastUpdated,
   dataError,
+  direction,
 }: DetailPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -135,7 +137,7 @@ export function DetailPanel({
           </p>
         )}
         <p className="mt-1 text-center text-xs text-neutral-600">
-          Metro 222 Southbound · Cahuenga Blvd
+          Metro 222 {direction === "northbound" ? "Northbound" : "Southbound"} · Cahuenga Blvd
         </p>
 
         {/* Install prompt at footer */}

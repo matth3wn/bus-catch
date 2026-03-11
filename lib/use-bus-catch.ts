@@ -7,6 +7,8 @@ import { haversine } from "./geo";
 import { calculateCatch } from "./catch-calculator";
 import { fetchTripUpdates, fetchVehiclePositions } from "./metro-api";
 import { estimateSpeed, PositionRecord } from "./speed";
+import { detectDirection, PositionSample } from "./direction";
+import { getRouteData } from "./route-data";
 import {
   DEFAULT_WALKING_SPEED,
   POLL_INTERVAL_MS,
@@ -15,6 +17,8 @@ import {
   SPEED_HISTORY_WINDOW,
   STALENESS_WARNING_SECONDS,
   STALENESS_ERROR_SECONDS,
+  DIRECTION_ID,
+  NORTHBOUND_DIRECTION_ID,
 } from "./constants";
 
 /** Map API source strings to BusCatchState dataSource values */
@@ -47,13 +51,16 @@ export function useBusCatch(): BusCatchState {
     dataSource: null,
     staleness: null,
     dataError: null,
+    direction: null,
   });
 
   const positionHistory = useRef<PositionRecord[]>([]);
+  const directionHistory = useRef<PositionSample[]>([]);
   const predictionsRef = useRef<BusPrediction[]>([]);
   const lastRecommendationAction = useRef<string | null>(null);
   const lastSuccessfulFetch = useRef<number | null>(null);
   const wasStalePrev = useRef<boolean>(false);
+  const directionRef = useRef<"northbound" | "southbound" | null>(null);
 
   // Vibrate on recommendation change
   const maybeVibrate = useCallback((action: string) => {
@@ -106,10 +113,16 @@ export function useBusCatch(): BusCatchState {
   const recalculate = useCallback(
     (user: UserPosition | null) => {
       const now = Math.floor(Date.now() / 1000);
+      const dir = directionRef.current;
+      const { stops } = dir === "northbound"
+        ? getRouteData(NORTHBOUND_DIRECTION_ID)
+        : getRouteData(DIRECTION_ID);
+
       const { analyses, recommendation } = calculateCatch(
         user,
         predictionsRef.current,
-        now
+        now,
+        stops
       );
 
       maybeVibrate(recommendation.action);
@@ -122,6 +135,7 @@ export function useBusCatch(): BusCatchState {
         stopAnalyses: analyses,
         recommendation,
         staleness,
+        direction: dir,
         // Only overwrite dataError from staleness if there's no existing fetch error
         // or if staleness is actively producing an error
         dataError: dataError ?? prev.dataError,
@@ -148,11 +162,28 @@ export function useBusCatch(): BusCatchState {
         if (accuracy > MAX_GPS_ACCURACY) return;
 
         const gpsPosition: LatLng = { lat: latitude, lng: longitude };
-        const snap = snapToRoute(gpsPosition);
+        const timestamp = pos.timestamp / 1000;
+
+        // Update direction history and detect direction
+        directionHistory.current.push({ position: gpsPosition, timestamp });
+        // Keep last 20 samples for direction detection
+        if (directionHistory.current.length > 20) {
+          directionHistory.current = directionHistory.current.slice(-20);
+        }
+        const detected = detectDirection(directionHistory.current);
+        if (detected) {
+          directionRef.current = detected;
+        }
+
+        // Use direction-aware route for snapping
+        const dir = directionRef.current;
+        const { walkingRoute } = dir === "northbound"
+          ? getRouteData(NORTHBOUND_DIRECTION_ID)
+          : getRouteData(DIRECTION_ID);
+
+        const snap = snapToRoute(gpsPosition, walkingRoute);
 
         if (snap.offRouteDistance > MAX_OFF_ROUTE_DISTANCE) return;
-
-        const timestamp = pos.timestamp / 1000;
 
         positionHistory.current.push({
           position: gpsPosition,
@@ -201,9 +232,12 @@ export function useBusCatch(): BusCatchState {
 
     async function poll() {
       try {
+        const dir = directionRef.current;
+        const dirId = dir === "northbound" ? NORTHBOUND_DIRECTION_ID : DIRECTION_ID;
+
         const [tripData, vehicleData] = await Promise.all([
-          fetchTripUpdates(),
-          fetchVehiclePositions(),
+          fetchTripUpdates(dirId),
+          fetchVehiclePositions(dirId),
         ]);
 
         if (cancelled) return;
@@ -239,10 +273,15 @@ export function useBusCatch(): BusCatchState {
         // Trigger recalculation with current user position
         setState((prev) => {
           const now = Math.floor(Date.now() / 1000);
+          const currentDir = directionRef.current;
+          const { stops } = currentDir === "northbound"
+            ? getRouteData(NORTHBOUND_DIRECTION_ID)
+            : getRouteData(DIRECTION_ID);
           const { analyses, recommendation } = calculateCatch(
             prev.user,
             predictions,
-            now
+            now,
+            stops
           );
           return { ...prev, stopAnalyses: analyses, recommendation };
         });

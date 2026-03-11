@@ -9,8 +9,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * Environment variables are manipulated to test different tiers.
  */
 
-// Will fail until T03 wires the fallback chain
 import { GET } from "@/app/api/metro/trip-updates/route";
+import { NextRequest } from "next/server";
+
+/** Create a mock NextRequest with optional direction query param */
+function makeRequest(direction?: number): NextRequest {
+  const url = direction !== undefined
+    ? `http://localhost:3000/api/metro/trip-updates?direction=${direction}`
+    : "http://localhost:3000/api/metro/trip-updates";
+  return new NextRequest(url);
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -21,7 +29,7 @@ beforeEach(() => {
 describe("GET /api/metro/trip-updates", () => {
   it("response always contains predictions array and source string", async () => {
     // With no API key set, should fall through to mock
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body).toHaveProperty("predictions");
@@ -63,7 +71,7 @@ describe("GET /api/metro/trip-updates", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("swiftly");
@@ -101,7 +109,7 @@ describe("GET /api/metro/trip-updates", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("metro-realtime");
@@ -147,7 +155,7 @@ describe("GET /api/metro/trip-updates", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("schedule");
@@ -161,7 +169,7 @@ describe("GET /api/metro/trip-updates", () => {
       vi.fn().mockRejectedValue(new Error("Network failure"))
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("mock");
@@ -210,10 +218,43 @@ describe("GET /api/metro/trip-updates", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("metro-realtime");
     expect(body.predictions.length).toBeGreaterThan(0);
+  });
+
+  it("returns northbound mock predictions when direction=0 and all tiers fail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Network failure"))
+    );
+
+    const response = await GET(makeRequest(0));
+    const body = await response.json();
+
+    expect(body.source).toBe("mock");
+    expect(body.predictions.length).toBeGreaterThan(0);
+    // Northbound mock should use northbound stop IDs
+    const stopIds = new Set(body.predictions.map((p: { stopId: string }) => p.stopId));
+    expect(stopIds.has("554")).toBe(true);   // Cahuenga / Barham (northbound)
+    expect(stopIds.has("9142")).toBe(false);  // Cahuenga / Barham (southbound)
+  });
+
+  it("defaults to southbound when no direction param", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Network failure"))
+    );
+
+    const response = await GET(makeRequest());
+    const body = await response.json();
+
+    expect(body.source).toBe("mock");
+    // Southbound mock should use southbound stop IDs
+    const stopIds = new Set(body.predictions.map((p: { stopId: string }) => p.stopId));
+    expect(stopIds.has("30002")).toBe(true);  // Universal City station (southbound)
+    expect(stopIds.has("9142")).toBe(true);   // Cahuenga / Barham (southbound)
   });
 });

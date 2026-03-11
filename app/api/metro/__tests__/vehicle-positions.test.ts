@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 /**
  * Integration tests for the vehicle-positions API route.
@@ -9,8 +10,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * Global fetch is mocked to control external API responses.
  */
 
-// Will fail until T03 wires the fallback chain
 import { GET } from "@/app/api/metro/vehicle-positions/route";
+
+/** Create a mock NextRequest with optional direction query param */
+function makeRequest(direction?: number): NextRequest {
+  const url = direction !== undefined
+    ? `http://localhost:3000/api/metro/vehicle-positions?direction=${direction}`
+    : "http://localhost:3000/api/metro/vehicle-positions";
+  return new NextRequest(url);
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -19,7 +27,7 @@ beforeEach(() => {
 
 describe("GET /api/metro/vehicle-positions", () => {
   it("response always contains vehicles array and source string", async () => {
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body).toHaveProperty("vehicles");
@@ -56,7 +64,7 @@ describe("GET /api/metro/vehicle-positions", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("swiftly");
@@ -90,7 +98,7 @@ describe("GET /api/metro/vehicle-positions", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("metro-realtime");
@@ -105,7 +113,7 @@ describe("GET /api/metro/vehicle-positions", () => {
       vi.fn().mockRejectedValue(new Error("Network failure"))
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("mock");
@@ -148,7 +156,7 @@ describe("GET /api/metro/vehicle-positions", () => {
       })
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.source).toBe("metro-realtime");

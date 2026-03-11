@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { haversine, snapToRoute, walkTimeSeconds } from "@/lib/geo";
-import { WALKING_ROUTE, TOTAL_ROUTE_DISTANCE } from "@/lib/route-data";
+import { WALKING_ROUTE, TOTAL_ROUTE_DISTANCE, NORTHBOUND_WALKING_ROUTE, NORTHBOUND_TOTAL_ROUTE_DISTANCE } from "@/lib/route-data";
 
 // ---------- haversine ----------
 
@@ -125,5 +125,32 @@ describe("walkTimeSeconds", () => {
     const slow = walkTimeSeconds(0, 1000, 1.0);
     const fast = walkTimeSeconds(0, 1000, 2.0);
     expect(slow).toBeCloseTo(fast * 2, 0);
+  });
+});
+
+// ---------- snapToRoute with northbound route ----------
+
+describe("snapToRoute — northbound", () => {
+  it("snaps a point near Cahuenga/Barham to the northbound route", () => {
+    // Barham area — should snap to the northbound route with valid distance
+    const barhamArea = { lat: 34.1287, lng: -118.3473 };
+    const snap = snapToRoute(barhamArea, NORTHBOUND_WALKING_ROUTE);
+
+    expect(snap.offRouteDistance).toBeLessThan(50);
+    expect(snap.routeDistance).toBeGreaterThan(0);
+    expect(snap.routeDistance).toBeLessThan(NORTHBOUND_TOTAL_ROUTE_DISTANCE);
+  });
+
+  it("northbound route total distance is similar to southbound", () => {
+    // Reversed route should have approximately the same total distance
+    expect(NORTHBOUND_TOTAL_ROUTE_DISTANCE).toBeCloseTo(TOTAL_ROUTE_DISTANCE, -1);
+  });
+
+  it("northbound start is near southbound end", () => {
+    // Northbound starts where southbound ends (southern end of Cahuenga segment)
+    const nbStart = NORTHBOUND_WALKING_ROUTE[0];
+    const sbEnd = WALKING_ROUTE[WALKING_ROUTE.length - 1];
+    expect(nbStart.lat).toBeCloseTo(sbEnd.lat, 3);
+    expect(nbStart.lng).toBeCloseTo(sbEnd.lng, 3);
   });
 });

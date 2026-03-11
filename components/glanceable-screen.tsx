@@ -20,6 +20,7 @@ interface GlanceableScreenProps {
   dataError: string | null;
   gpsError: string | null;
   loading: boolean;
+  direction: "northbound" | "southbound" | null;
   onTap: () => void;
 }
 
@@ -41,6 +42,7 @@ export function GlanceableScreen({
   dataError,
   gpsError,
   loading,
+  direction,
   onTap,
 }: GlanceableScreenProps) {
   // Loading state: before first GPS + API response
@@ -99,10 +101,15 @@ export function GlanceableScreen({
         {recommendation.reason}
       </p>
 
-      {/* Data source mini-badge at bottom */}
-      {dataSource && (
-        <div className="absolute bottom-6 left-0 right-0 pb-safe">
-          <div className="flex items-center justify-center gap-2">
+      {/* Direction + data source badges at bottom */}
+      <div className="absolute bottom-6 left-0 right-0 pb-safe">
+        <div className="flex items-center justify-center gap-2">
+          {direction && (
+            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white/80">
+              {direction === "northbound" ? "↑ NB" : "↓ SB"}
+            </span>
+          )}
+          {dataSource && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 dataSource === "realtime"
@@ -114,14 +121,14 @@ export function GlanceableScreen({
             >
               {dataSource.toUpperCase()}
             </span>
-            {staleness !== null && staleness > 0 && (
-              <span className="text-xs text-white/50">
-                {Math.round(staleness)}s ago
-              </span>
-            )}
-          </div>
+          )}
+          {staleness !== null && staleness > 0 && (
+            <span className="text-xs text-white/50">
+              {Math.round(staleness)}s ago
+            </span>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
