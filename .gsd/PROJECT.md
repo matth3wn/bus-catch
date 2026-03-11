@@ -56,10 +56,7 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
   - [x] S02: GPS & Calculation Reliability
   - [x] S03: Glanceable UX
   - [x] S04: Deploy & Validate
-
-## What's Next
-
-No active milestone. Candidates for M002:
-- **Real-walk validation** — test on Cahuenga Blvd to validate R003-R007 and tune CATCH_BUFFER_SECONDS and GPS thresholds
-- **Northbound support** (R011) — different stops, direction_id, polyline
-- **B Line integration** (R010) — know before exiting the train whether a bus is available
+- [ ] M002: Northbound — Add return-trip support with automatic direction detection
+  - [ ] S01: Direction-Aware Data Layer
+  - [ ] S02: Bidirectional Calculator & UI
+  - [ ] S03: Deploy & Regression Check

@@ -134,14 +134,14 @@
 
 ### R011 — Northbound / return trip support
 - Class: core-capability
-- Status: deferred
+- Status: active
 - Description: Support the reverse commute — walking north on Cahuenga toward Universal City station, catching the 222 northbound.
 - Why it matters: The user also walks home. Same problem in reverse.
-- Source: inferred
-- Primary owning slice: none
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Deferred — different stops, different direction_id, different polyline. Natural second milestone.
+- Source: user
+- Primary owning slice: M002/S01
+- Supporting slices: M002/S02
+- Validation: unmapped — M002 will implement direction detection, northbound route data, and bidirectional pipeline
+- Notes: Northbound uses direction_id=0, different stop IDs (9138, 554, 558, 548, 556, 551, 30002). Walking route is reverse of southbound polyline. Auto-detection from GPS heading.
 
 ## Out of Scope
 
@@ -181,13 +181,13 @@
 | R008 | launchability | validated | M001/S04 | none | S04 — deployed, manifest/SW/HTTPS verified |
 | R009 | failure-visibility | validated | M001/S02 | M001/S03 | S02 state + S03 UI rendering verified |
 | R010 | differentiator | deferred | none | none | unmapped |
-| R011 | core-capability | deferred | none | none | unmapped |
+| R011 | core-capability | active | M002/S01 | M002/S02 | unmapped — M002 in progress |
 | R012 | anti-feature | out-of-scope | none | none | n/a |
 | R013 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 5
-- Mapped to slices: 5
+- Active requirements: 6
+- Mapped to slices: 6
 - Validated: 4 (R001, R002, R008, R009)
 - Unmapped active requirements: 0
