@@ -51,13 +51,13 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Direction-Aware Data Layer** `risk:high` `depends:[]`
+- [x] **S01: Direction-Aware Data Layer** `risk:high` `depends:[]`
   > After this: Northbound route data (polyline + stops) exists, direction detection function classifies heading from GPS history, API routes accept a direction query parameter and return direction-filtered predictions. Verified by unit tests for direction detection and API responses with direction=0.
 
-- [ ] **S02: Bidirectional Calculator & UI** `risk:medium` `depends:[S01]`
+- [x] **S02: Bidirectional Calculator & UI** `risk:medium` `depends:[S01]`
   > After this: The app automatically detects walking direction from GPS, passes it through the full pipeline (API → calculator → state → UI), shows correct stops and route diagram for the active direction, and displays a direction indicator. Verified by running the app in mobile viewport with both directions producing correct UI.
 
-- [ ] **S03: Deploy & Regression Check** `risk:low` `depends:[S02]`
+- [x] **S03: Deploy & Regression Check** `risk:low` `depends:[S02]`
   > After this: App is deployed to production at the same URL, all tests pass, southbound behavior is preserved, northbound pipeline works end-to-end. Verified by production curl checks and browser verification.
 
 ## Boundary Map

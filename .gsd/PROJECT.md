@@ -25,8 +25,9 @@ Instant, glanceable walk-or-wait decision when the user pulls out their phone mi
 - **Validated geo functions:** 14 tests cover haversine distance, route snapping, walk time estimation
 - **Tightened GPS thresholds:** 50m accuracy, 100m off-route (D010)
 - **PWA ready:** manifest, service worker with shell caching, HTTPS via Vercel
-- 8 hardcoded Route 222 southbound stops
-- 51 passing tests (Vitest)
+- **Bidirectional:** Automatic direction detection from GPS, northbound (7 stops) + southbound (8 stops)
+- **Direction-aware API:** `?direction=0` for northbound, `?direction=1` (default) for southbound
+- 71 passing tests (Vitest)
 
 ## Architecture / Key Patterns
 
@@ -46,8 +47,8 @@ Instant, glanceable walk-or-wait decision when the user pulls out their phone mi
 See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement status, and coverage mapping.
 
 **Validated:** R001 (glanceable UX), R002 (tap-to-expand), R008 (PWA deployment), R009 (failure visibility)
-**Active (tested, awaiting real-walk validation):** R003 (real-time predictions), R004 (multi-tier API), R005 (GPS tracking), R006 (catch calculations), R007 (schedule fallback)
-**Deferred:** R010 (B Line integration), R011 (northbound support)
+**Active (tested, awaiting real-walk validation):** R003 (real-time predictions), R004 (multi-tier API), R005 (GPS tracking), R006 (catch calculations), R007 (schedule fallback), R011 (northbound support)
+**Deferred:** R010 (B Line integration)
 
 ## Milestone Sequence
 
@@ -56,7 +57,7 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
   - [x] S02: GPS & Calculation Reliability
   - [x] S03: Glanceable UX
   - [x] S04: Deploy & Validate
-- [ ] M002: Northbound — Add return-trip support with automatic direction detection
-  - [ ] S01: Direction-Aware Data Layer
-  - [ ] S02: Bidirectional Calculator & UI
-  - [ ] S03: Deploy & Regression Check
+- [x] M002: Northbound — Automatic direction detection, northbound route data and stops, bidirectional pipeline
+  - [x] S01: Direction-Aware Data Layer
+  - [x] S02: Bidirectional Calculator & UI
+  - [x] S03: Deploy & Regression Check
