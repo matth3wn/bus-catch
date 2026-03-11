@@ -8,10 +8,16 @@ export const POLL_INTERVAL_MS = 15_000;
 export const CATCH_BUFFER_SECONDS = 90;
 
 /** Maximum GPS accuracy (meters) we'll accept */
-export const MAX_GPS_ACCURACY = 200;
+export const MAX_GPS_ACCURACY = 50;
 
 /** Maximum distance from route (meters) before GPS reading is rejected */
-export const MAX_OFF_ROUTE_DISTANCE = 500;
+export const MAX_OFF_ROUTE_DISTANCE = 100;
+
+/** Seconds since last successful fetch before staleness warning */
+export const STALENESS_WARNING_SECONDS = 60;
+
+/** Seconds since last successful fetch before staleness error */
+export const STALENESS_ERROR_SECONDS = 120;
 
 /** Seconds of position history to use for speed estimation */
 export const SPEED_HISTORY_WINDOW = 30;

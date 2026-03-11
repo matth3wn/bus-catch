@@ -56,7 +56,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Resilient Data Pipeline** `risk:high` `depends:[]`
   > After this: API routes return real bus predictions from either Swiftly or public GTFS-RT, with schedule-based fallback when neither has data. Verified by hitting the API routes and seeing real prediction payloads.
 
-- [ ] **S02: GPS & Calculation Reliability** `risk:medium` `depends:[S01]`
+- [x] **S02: GPS & Calculation Reliability** `risk:medium` `depends:[S01]`
   > After this: Catch calculator produces correct recommendations for known test scenarios, GPS handling is robust against noise, and failure states (stale data, GPS denied, off-route) are properly detected and surfaced. Verified by unit tests and simulated walk scenarios.
 
 - [ ] **S03: Glanceable UX** `risk:medium` `depends:[S02]`

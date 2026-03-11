@@ -54,8 +54,8 @@
 - Source: inferred
 - Primary owning slice: M001/S02
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Existing code has route snapping and speed estimation but untested. May need tuning of MAX_GPS_ACCURACY, MAX_OFF_ROUTE_DISTANCE, SPEED_HISTORY_WINDOW constants.
+- Validation: S02 — geo functions tested (14 unit tests: haversine, snapToRoute, walkTimeSeconds); GPS thresholds tightened to 50m/100m (D010); real-walk validation pending S04
+- Notes: Thresholds changed from 200m/500m to 50m/100m. Speed estimation extracted to lib/speed.ts but not yet unit tested. Real GPS validation deferred to S04.
 
 ### R006 — Accurate catch calculations
 - Class: core-capability
@@ -65,8 +65,8 @@
 - Source: inferred
 - Primary owning slice: M001/S02
 - Supporting slices: M001/S01
-- Validation: unmapped
-- Notes: CATCH_BUFFER_SECONDS=90 may be too conservative or too aggressive. Need real-world validation.
+- Validation: S02 — 12 scenario-based tests prove correct recommendations for all known use cases (9 research scenarios + 3 edge cases); buffer tuning (CATCH_BUFFER_SECONDS=90) pending S04 real-walk validation
+- Notes: CATCH_BUFFER_SECONDS=90 unchanged — may need tuning after real-walk testing in S04.
 
 ### R007 — Schedule-based fallback
 - Class: continuity
@@ -98,8 +98,8 @@
 - Source: inferred
 - Primary owning slice: M001/S02
 - Supporting slices: M001/S03
-- Validation: unmapped
-- Notes: Current app has basic gpsError display but no staleness detection or API failure indication in the main UX.
+- Validation: S02 — BusCatchState extended with dataSource/staleness/dataError fields; staleness detection wired (60s warn, 120s error); type contract verified by build. UI rendering of these fields deferred to S03.
+- Notes: GPS denied → existing gpsError field. Data stale >60s → staleness populated. >120s → dataError populated. Off-route → GPS reading dropped. S03 must render all failure states.
 
 ## Validated
 
@@ -161,11 +161,11 @@
 | R002 | core-capability | active | M001/S03 | none | unmapped |
 | R003 | core-capability | active | M001/S01 | none | S01 — parsing tested, live pending |
 | R004 | continuity | active | M001/S01 | none | S01 — fallback chain tested |
-| R005 | core-capability | active | M001/S02 | none | unmapped |
-| R006 | core-capability | active | M001/S02 | M001/S01 | unmapped |
+| R005 | core-capability | active | M001/S02 | none | S02 — geo tested, thresholds tightened; real-walk pending S04 |
+| R006 | core-capability | active | M001/S02 | M001/S01 | S02 — 12 scenario tests; buffer tuning pending S04 |
 | R007 | continuity | active | M001/S01 | M001/S02 | S01 — schedule parser tested |
 | R008 | launchability | active | M001/S04 | none | unmapped |
-| R009 | failure-visibility | active | M001/S02 | M001/S03 | unmapped |
+| R009 | failure-visibility | active | M001/S02 | M001/S03 | S02 — state fields wired; UI rendering pending S03 |
 | R010 | differentiator | deferred | none | none | unmapped |
 | R011 | core-capability | deferred | none | none | unmapped |
 | R012 | anti-feature | out-of-scope | none | none | n/a |

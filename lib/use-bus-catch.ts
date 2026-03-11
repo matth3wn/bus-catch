@@ -6,18 +6,33 @@ import { snapToRoute } from "./geo";
 import { haversine } from "./geo";
 import { calculateCatch } from "./catch-calculator";
 import { fetchTripUpdates, fetchVehiclePositions } from "./metro-api";
+import { estimateSpeed, PositionRecord } from "./speed";
 import {
   DEFAULT_WALKING_SPEED,
   POLL_INTERVAL_MS,
   MAX_GPS_ACCURACY,
   MAX_OFF_ROUTE_DISTANCE,
   SPEED_HISTORY_WINDOW,
+  STALENESS_WARNING_SECONDS,
+  STALENESS_ERROR_SECONDS,
 } from "./constants";
 
-interface PositionRecord {
-  position: LatLng;
-  routeDistance: number;
-  timestamp: number;
+/** Map API source strings to BusCatchState dataSource values */
+function mapDataSource(
+  apiSource: string | undefined
+): "realtime" | "schedule" | "mock" | null {
+  if (!apiSource) return null;
+  switch (apiSource) {
+    case "metro-realtime":
+    case "swiftly":
+      return "realtime";
+    case "schedule":
+      return "schedule";
+    case "mock":
+      return "mock";
+    default:
+      return null;
+  }
 }
 
 export function useBusCatch(): BusCatchState {
@@ -29,37 +44,23 @@ export function useBusCatch(): BusCatchState {
     lastUpdated: null,
     gpsError: null,
     loading: true,
+    dataSource: null,
+    staleness: null,
+    dataError: null,
   });
 
   const positionHistory = useRef<PositionRecord[]>([]);
   const predictionsRef = useRef<BusPrediction[]>([]);
   const lastRecommendationAction = useRef<string | null>(null);
-
-  // Estimate walking speed from recent position history
-  const estimateSpeed = useCallback((): number => {
-    const history = positionHistory.current;
-    const now = Date.now() / 1000;
-    const recent = history.filter((h) => now - h.timestamp < SPEED_HISTORY_WINDOW);
-
-    if (recent.length < 2) return DEFAULT_WALKING_SPEED;
-
-    const first = recent[0];
-    const last = recent[recent.length - 1];
-    const timeDelta = last.timestamp - first.timestamp;
-    if (timeDelta < 5) return DEFAULT_WALKING_SPEED;
-
-    const distDelta = last.routeDistance - first.routeDistance;
-    if (distDelta <= 0) return DEFAULT_WALKING_SPEED;
-
-    const speed = distDelta / timeDelta;
-    // Sanity check: between 0.5 and 3.0 m/s
-    if (speed < 0.5 || speed > 3.0) return DEFAULT_WALKING_SPEED;
-    return speed;
-  }, []);
+  const lastSuccessfulFetch = useRef<number | null>(null);
+  const wasStalePrev = useRef<boolean>(false);
 
   // Vibrate on recommendation change
   const maybeVibrate = useCallback((action: string) => {
-    if (lastRecommendationAction.current && lastRecommendationAction.current !== action) {
+    if (
+      lastRecommendationAction.current &&
+      lastRecommendationAction.current !== action
+    ) {
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(action === "WAIT" ? [200, 100, 200] : [200]);
       }
@@ -67,28 +68,76 @@ export function useBusCatch(): BusCatchState {
     lastRecommendationAction.current = action;
   }, []);
 
+  // Compute staleness fields based on lastSuccessfulFetch
+  const computeStaleness = useCallback((): {
+    staleness: number | null;
+    dataError: string | null;
+  } => {
+    if (lastSuccessfulFetch.current === null) {
+      return { staleness: null, dataError: null };
+    }
+    const stalenessSeconds =
+      (Date.now() - lastSuccessfulFetch.current) / 1000;
+
+    const isStaleNow = stalenessSeconds > STALENESS_WARNING_SECONDS;
+
+    // Log staleness transition
+    if (isStaleNow && !wasStalePrev.current) {
+      console.warn(
+        `[bus-catch] Data stale: ${Math.round(stalenessSeconds)}s since last update`
+      );
+    }
+    wasStalePrev.current = isStaleNow;
+
+    if (stalenessSeconds > STALENESS_ERROR_SECONDS) {
+      return {
+        staleness: stalenessSeconds,
+        dataError: `Bus data is stale (>${Math.round(STALENESS_ERROR_SECONDS / 60)} min since last update)`,
+      };
+    }
+
+    return {
+      staleness: stalenessSeconds,
+      dataError: null,
+    };
+  }, []);
+
   // Recalculate based on current state
   const recalculate = useCallback(
     (user: UserPosition | null) => {
       const now = Math.floor(Date.now() / 1000);
-      const { analyses, recommendation } = calculateCatch(user, predictionsRef.current, now);
+      const { analyses, recommendation } = calculateCatch(
+        user,
+        predictionsRef.current,
+        now
+      );
 
       maybeVibrate(recommendation.action);
+
+      const { staleness, dataError } = computeStaleness();
 
       setState((prev) => ({
         ...prev,
         user,
         stopAnalyses: analyses,
         recommendation,
+        staleness,
+        // Only overwrite dataError from staleness if there's no existing fetch error
+        // or if staleness is actively producing an error
+        dataError: dataError ?? prev.dataError,
       }));
     },
-    [maybeVibrate]
+    [maybeVibrate, computeStaleness]
   );
 
   // GPS tracking
   useEffect(() => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      setState((prev) => ({ ...prev, gpsError: "Geolocation not available", loading: false }));
+      setState((prev) => ({
+        ...prev,
+        gpsError: "Geolocation not available",
+        loading: false,
+      }));
       return;
     }
 
@@ -113,12 +162,19 @@ export function useBusCatch(): BusCatchState {
 
         // Keep only recent history
         const cutoff = timestamp - SPEED_HISTORY_WINDOW * 2;
-        positionHistory.current = positionHistory.current.filter((h) => h.timestamp > cutoff);
+        positionHistory.current = positionHistory.current.filter(
+          (h) => h.timestamp > cutoff
+        );
 
+        const now = Date.now() / 1000;
         const user: UserPosition = {
           position: snap.point,
           routeDistance: snap.routeDistance,
-          walkingSpeed: estimateSpeed(),
+          walkingSpeed: estimateSpeed(
+            positionHistory.current,
+            now,
+            SPEED_HISTORY_WINDOW
+          ),
           accuracy,
           timestamp,
         };
@@ -137,7 +193,7 @@ export function useBusCatch(): BusCatchState {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [estimateSpeed, recalculate]);
+  }, [recalculate]);
 
   // API polling
   useEffect(() => {
@@ -152,8 +208,14 @@ export function useBusCatch(): BusCatchState {
 
         if (cancelled) return;
 
+        // Record successful fetch time and data source
+        lastSuccessfulFetch.current = Date.now();
+        const dataSource = mapDataSource(tripData.source);
+
         // Merge vehicle positions into predictions
-        const vehicleMap = new Map(vehicleData.vehicles.map((v) => [v.tripId, v]));
+        const vehicleMap = new Map(
+          vehicleData.vehicles.map((v) => [v.tripId, v])
+        );
         const predictions = tripData.predictions.map((p) => {
           const vehicle = vehicleMap.get(p.tripId);
           return {
@@ -169,16 +231,34 @@ export function useBusCatch(): BusCatchState {
           ...prev,
           predictions,
           lastUpdated: Date.now(),
+          dataSource,
+          dataError: null,
+          staleness: 0,
         }));
 
         // Trigger recalculation with current user position
         setState((prev) => {
           const now = Math.floor(Date.now() / 1000);
-          const { analyses, recommendation } = calculateCatch(prev.user, predictions, now);
+          const { analyses, recommendation } = calculateCatch(
+            prev.user,
+            predictions,
+            now
+          );
           return { ...prev, stopAnalyses: analyses, recommendation };
         });
       } catch (err) {
-        console.error("Poll error:", err);
+        if (cancelled) return;
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown fetch error";
+        console.error("[bus-catch] Poll error:", errorMessage);
+
+        const { staleness } = computeStaleness();
+
+        setState((prev) => ({
+          ...prev,
+          dataError: errorMessage,
+          staleness,
+        }));
       }
     }
 
@@ -189,7 +269,7 @@ export function useBusCatch(): BusCatchState {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [computeStaleness]);
 
   return state;
 }

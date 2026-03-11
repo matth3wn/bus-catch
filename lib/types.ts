@@ -65,4 +65,10 @@ export interface BusCatchState {
   lastUpdated: number | null;
   gpsError: string | null;
   loading: boolean;
+  /** Which data tier is active: realtime, schedule, mock, or null if unknown */
+  dataSource: "realtime" | "schedule" | "mock" | null;
+  /** Seconds since last successful API fetch, or null if never fetched */
+  staleness: number | null;
+  /** Error message when data is stale or fetch fails, null when healthy */
+  dataError: string | null;
 }

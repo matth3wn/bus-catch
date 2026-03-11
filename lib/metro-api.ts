@@ -2,6 +2,7 @@ import { BusPrediction, LatLng } from "./types";
 
 export interface TripUpdateResponse {
   predictions: BusPrediction[];
+  source: string;
 }
 
 export interface VehiclePositionResponse {
@@ -11,6 +12,7 @@ export interface VehiclePositionResponse {
     position: LatLng;
     timestamp: number;
   }>;
+  source: string;
 }
 
 export async function fetchTripUpdates(): Promise<TripUpdateResponse> {
