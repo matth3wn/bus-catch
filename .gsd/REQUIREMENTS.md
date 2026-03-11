@@ -32,19 +32,19 @@
 - Source: user
 - Primary owning slice: M001/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Must support both Swiftly API (existing) and LA Metro public GTFS-RT endpoint as fallback.
+- Validation: S01 — Metro API v2 parsing tested with realistic fixtures (14 unit tests); live API shape confirmation pending
+- Notes: Supports Swiftly API (existing) and Metro API v2 JSON endpoints as fallback. Response parsing proven correct via test fixtures.
 
-### R004 — Dual API support (Swiftly + public GTFS-RT)
+### R004 — Multi-tier API support (Swiftly + Metro API v2)
 - Class: continuity
 - Status: active
-- Description: API layer tries Swiftly first (if key configured), falls back to LA Metro's public GTFS-RT feed. Works with either or neither (mock mode for dev).
-- Why it matters: User isn't sure about Swiftly access. Public GTFS-RT ensures the app works regardless. Graceful degradation keeps the app useful.
+- Description: API layer tries Swiftly first (if key configured), falls back to Metro API v2 JSON endpoints (real-time then schedule). Works with any combination or none (mock mode for dev).
+- Why it matters: User isn't sure about Swiftly access. Metro API v2 ensures the app works regardless. Graceful degradation keeps the app useful.
 - Source: user
 - Primary owning slice: M001/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Current code only supports Swiftly. Need to add public GTFS-RT endpoint support.
+- Validation: S01 — integration tests prove all fallback tiers and transitions; live API confirmation pending during service hours
+- Notes: Originally scoped as "public GTFS-RT" — S01 implemented Metro API v2 JSON REST endpoints instead (D007), avoiding protobuf dependency while providing same data.
 
 ### R005 — Reliable GPS tracking on real walks
 - Class: core-capability
@@ -76,8 +76,8 @@
 - Source: user
 - Primary owning slice: M001/S01
 - Supporting slices: M001/S02
-- Validation: unmapped
-- Notes: Can use static GTFS schedule data for Route 222. Recommendation quality will be lower but still useful.
+- Validation: S01 — schedule parser tested with fixtures including >24h GTFS times, day-type detection, future-only filtering; integrated as third tier in trip-updates fallback chain
+- Notes: Uses Metro API v2 `route_stops/222` endpoint with day_type parameter. Handles GTFS >24:00 times. Recommendation quality lower than real-time but still useful.
 
 ### R008 — PWA deployment
 - Class: launchability
@@ -159,11 +159,11 @@
 |---|---|---|---|---|---|
 | R001 | primary-user-loop | active | M001/S03 | M001/S01, M001/S02 | unmapped |
 | R002 | core-capability | active | M001/S03 | none | unmapped |
-| R003 | core-capability | active | M001/S01 | none | unmapped |
-| R004 | continuity | active | M001/S01 | none | unmapped |
+| R003 | core-capability | active | M001/S01 | none | S01 — parsing tested, live pending |
+| R004 | continuity | active | M001/S01 | none | S01 — fallback chain tested |
 | R005 | core-capability | active | M001/S02 | none | unmapped |
 | R006 | core-capability | active | M001/S02 | M001/S01 | unmapped |
-| R007 | continuity | active | M001/S01 | M001/S02 | unmapped |
+| R007 | continuity | active | M001/S01 | M001/S02 | S01 — schedule parser tested |
 | R008 | launchability | active | M001/S04 | none | unmapped |
 | R009 | failure-visibility | active | M001/S02 | M001/S03 | unmapped |
 | R010 | differentiator | deferred | none | none | unmapped |

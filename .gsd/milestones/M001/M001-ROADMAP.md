@@ -53,7 +53,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Resilient Data Pipeline** `risk:high` `depends:[]`
+- [x] **S01: Resilient Data Pipeline** `risk:high` `depends:[]`
   > After this: API routes return real bus predictions from either Swiftly or public GTFS-RT, with schedule-based fallback when neither has data. Verified by hitting the API routes and seeing real prediction payloads.
 
 - [ ] **S02: GPS & Calculation Reliability** `risk:medium` `depends:[S01]`

@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git init)",
+      "Bash(cp -r /tmp/brainmaxxing-install/brain /Users/matthewnguyen/projects/bus/)",
+      "Bash(cp -r /tmp/brainmaxxing-install/.agents /Users/matthewnguyen/projects/bus/)",
+      "Bash(chmod +x /Users/matthewnguyen/projects/bus/.claude/hooks/inject-brain.sh /Users/matthewnguyen/projects/bus/.claude/hooks/auto-index-brain.sh)",
+      "Bash(CLAUDE_PROJECT_DIR=/Users/matthewnguyen/projects/bus .claude/hooks/inject-brain.sh)",
+      "WebSearch",
+      "WebFetch(domain:developer.metro.net)",
+      "Bash(git -C /Users/matthewnguyen/projects/bus log --oneline -10)",
+      "WebFetch(domain:www.transit.wiki)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:rt.pasadenatransit.net)",
+      "WebFetch(domain:docs.goswift.ly)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:swiftly.zendesk.com)",
+      "WebFetch(domain:lacmta.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:gtfs.org)",
+      "Bash(cat '/Users/matthewnguyen/.claude/projects/-Users-matthewnguyen-projects-bus/8770e967-9722-4cf2-bfda-5ac60df3176e/tool-results/toolu_01UFNTGhVoKwKGYeE127zG9W.json' | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0]['text']\\)\" | head -500)",
+      "Bash(cat '/Users/matthewnguyen/.claude/projects/-Users-matthewnguyen-projects-bus/8770e967-9722-4cf2-bfda-5ac60df3176e/tool-results/toolu_01UFNTGhVoKwKGYeE127zG9W.json' | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0]['text']\\)\" | tail -n +500)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src=no --import-alias \"@/*\" --use-npm --turbopack 2>&1 | tail -20)",
+      "Bash(cd /tmp && rm -rf bus-catch && yes \"\" | npx create-next-app@latest bus-catch --typescript --tailwind --eslint --app --src=no --import-alias \"@/*\" --use-npm --turbopack --no-git 2>&1 | tail -10)"
+    ]
+  }
+}
