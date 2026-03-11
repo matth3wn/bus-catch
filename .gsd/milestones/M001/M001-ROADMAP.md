@@ -62,7 +62,7 @@ This milestone is complete only when all are true:
 - [x] **S03: Glanceable UX** `risk:medium` `depends:[S02]`
   > After this: App shows a full-screen color-coded walk-or-wait answer, with tap-to-expand detail view showing stop cards and route diagram. Verified in mobile viewport browser rendering.
 
-- [ ] **S04: Deploy & Validate** `risk:low` `depends:[S03]`
+- [x] **S04: Deploy & Validate** `risk:low` `depends:[S03]`
   > After this: App is deployed to a public URL, installable as PWA on iOS/Android, with proper service worker caching. Verified by installing on a real phone and loading from home screen.
 
 ## Boundary Map

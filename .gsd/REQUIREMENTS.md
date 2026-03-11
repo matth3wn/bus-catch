@@ -81,14 +81,14 @@
 
 ### R008 — PWA deployment
 - Class: launchability
-- Status: active
+- Status: validated
 - Description: App is deployed to a public URL and installable as a PWA on iOS and Android. Opens instantly from home screen in standalone mode.
 - Why it matters: The user needs to pull this out of their pocket and get an answer. A deployed PWA with home screen icon is the delivery mechanism.
 - Source: user
 - Primary owning slice: M001/S04
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Manifest and service worker shell already exist. Need proper caching strategy and deployment.
+- Validation: S04 — deployed to https://bus-mu-ebon.vercel.app, manifest served at /manifest.webmanifest (name, icons, display:standalone correct), SW registered and activated, HTTPS via Vercel, 19/19 programmatic PWA checks pass. Physical device install documented in UAT checklist (all prerequisites verified).
+- Notes: GitHub repo matth3wn/bus-catch with auto-deploy on push. No SWIFTLY_API_KEY — uses Metro API v2 + schedule fallback.
 
 ### R009 — Failure visibility
 - Class: failure-visibility
@@ -110,6 +110,10 @@
 ### R002 — Tap-to-expand detail view
 - Validated by: S03 browser assertions — expand/collapse cycle with correct content
 - Proof: tap expands detail panel, close button collapses, route diagram + stop cards render
+
+### R008 — PWA deployment
+- Validated by: S04 deployment + 19/19 programmatic PWA checks
+- Proof: deployed at https://bus-mu-ebon.vercel.app, manifest correct, SW active, HTTPS, all install prerequisites met
 
 ### R009 — Failure visibility
 - Validated by: S02 state wiring + S03 UI rendering
@@ -174,7 +178,7 @@
 | R005 | core-capability | active | M001/S02 | none | S02 — geo tested, thresholds tightened; real-walk pending S04 |
 | R006 | core-capability | active | M001/S02 | M001/S01 | S02 — 12 scenario tests; buffer tuning pending S04 |
 | R007 | continuity | active | M001/S01 | M001/S02 | S01 — schedule parser tested |
-| R008 | launchability | active | M001/S04 | none | unmapped |
+| R008 | launchability | validated | M001/S04 | none | S04 — deployed, manifest/SW/HTTPS verified |
 | R009 | failure-visibility | validated | M001/S02 | M001/S03 | S02 state + S03 UI rendering verified |
 | R010 | differentiator | deferred | none | none | unmapped |
 | R011 | core-capability | deferred | none | none | unmapped |
@@ -183,7 +187,7 @@
 
 ## Coverage Summary
 
-- Active requirements: 6
-- Mapped to slices: 6
-- Validated: 3 (R001, R002, R009)
+- Active requirements: 5
+- Mapped to slices: 5
+- Validated: 4 (R001, R002, R008, R009)
 - Unmapped active requirements: 0
