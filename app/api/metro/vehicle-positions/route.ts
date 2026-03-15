@@ -35,7 +35,7 @@ async function trySwiftly(directionId: number): Promise<{ vehicles: VehicleInfo[
     throw new Error("SWIFTLY_API_KEY not configured");
   }
 
-  const url = `${SWIFTLY_API_BASE}/gtfs-rt/vehiclePositions?format=json`;
+  const url = `${SWIFTLY_API_BASE}/gtfs-rt-vehicle-positions?format=json`;
 
   let res = await fetch(url, {
     headers: { Authorization: apiKey },

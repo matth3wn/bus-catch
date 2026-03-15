@@ -56,7 +56,7 @@ async function trySwiftly(directionId: number): Promise<{ predictions: BusPredic
     throw new Error("SWIFTLY_API_KEY not configured");
   }
 
-  const url = `${SWIFTLY_API_BASE}/gtfs-rt/tripUpdates?format=json`;
+  const url = `${SWIFTLY_API_BASE}/gtfs-rt-trip-updates?format=json`;
 
   // Try raw key first, then Bearer format
   let res = await fetch(url, {

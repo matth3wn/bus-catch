@@ -36,7 +36,7 @@ export const DIRECTION_MIN_DISPLACEMENT = 30;
 export const DIRECTION_MIN_SAMPLES = 3;
 
 /** Swiftly API base URL for LA Metro */
-export const SWIFTLY_API_BASE = "https://api.goswift.ly/real-time/lacmta";
+export const SWIFTLY_API_BASE = "https://api.goswift.ly/real-time/lametro";
 
 /** Metro API v2 base URL (free, no auth required) */
 export const METRO_API_BASE = "https://api.metro.net";
