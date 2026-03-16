@@ -65,8 +65,7 @@ export function DetailPanel({
         <div className="flex items-center gap-2 pt-3">
           <button
             onClick={onToggleDirection}
-            className="rounded-full bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-300 active:bg-neutral-700"
-            style={{ minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+            className="flex h-11 items-center justify-center rounded-full bg-neutral-800 px-4 text-sm font-medium text-neutral-300 active:bg-neutral-700"
             aria-label={`Switch to ${(direction ?? "southbound") === "northbound" ? "southbound" : "northbound"}`}
           >
             {(direction ?? "southbound") === "northbound" ? "↑ NB" : "↓ SB"}
