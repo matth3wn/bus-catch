@@ -38,6 +38,7 @@ export default function Home() {
         loading={state.loading}
         direction={state.direction}
         onTap={() => setExpanded(true)}
+        onToggleDirection={state.toggleDirection}
       />
       <DetailPanel
         expanded={expanded}
@@ -50,6 +51,7 @@ export default function Home() {
         lastUpdated={state.lastUpdated}
         dataError={state.dataError}
         direction={state.direction}
+        onToggleDirection={state.toggleDirection}
       />
     </>
   );

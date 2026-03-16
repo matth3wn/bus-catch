@@ -22,6 +22,7 @@ interface DetailPanelProps {
   lastUpdated: number | null;
   dataError: string | null;
   direction: "northbound" | "southbound" | null;
+  onToggleDirection: () => void;
 }
 
 export function DetailPanel({
@@ -35,6 +36,7 @@ export function DetailPanel({
   lastUpdated,
   dataError,
   direction,
+  onToggleDirection,
 }: DetailPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +62,15 @@ export function DetailPanel({
         <h2 className="pt-3 text-sm font-semibold uppercase tracking-wider text-neutral-400">
           Route Details
         </h2>
+        <div className="flex items-center gap-2 pt-3">
+          <button
+            onClick={onToggleDirection}
+            className="rounded-full bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-300 active:bg-neutral-700"
+            style={{ minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label={`Switch to ${(direction ?? "southbound") === "northbound" ? "southbound" : "northbound"}`}
+          >
+            {(direction ?? "southbound") === "northbound" ? "↑ NB" : "↓ SB"}
+          </button>
         <button
           onClick={onClose}
           className="flex h-11 w-11 items-center justify-center rounded-full text-2xl text-neutral-400 active:bg-neutral-800"
@@ -68,6 +79,7 @@ export function DetailPanel({
         >
           ×
         </button>
+        </div>
       </div>
 
       {/* Scrollable content */}

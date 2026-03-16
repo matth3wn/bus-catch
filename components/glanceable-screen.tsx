@@ -22,6 +22,7 @@ interface GlanceableScreenProps {
   loading: boolean;
   direction: "northbound" | "southbound" | null;
   onTap: () => void;
+  onToggleDirection: () => void;
 }
 
 function headlineText(recommendation: Recommendation): string {
@@ -44,6 +45,7 @@ export function GlanceableScreen({
   loading,
   direction,
   onTap,
+  onToggleDirection,
 }: GlanceableScreenProps) {
   // Loading state: before first GPS + API response
   if (loading && dataSource === null) {
@@ -104,11 +106,14 @@ export function GlanceableScreen({
       {/* Direction + data source badges at bottom */}
       <div className="absolute bottom-6 left-0 right-0 pb-safe">
         <div className="flex items-center justify-center gap-2">
-          {direction && (
-            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white/80">
-              {direction === "northbound" ? "↑ NB" : "↓ SB"}
-            </span>
-          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleDirection(); }}
+            className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white/90 active:bg-white/30"
+            style={{ minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label={`Switch to ${(direction ?? "southbound") === "northbound" ? "southbound" : "northbound"}`}
+          >
+            {(direction ?? "southbound") === "northbound" ? "↑ NB" : "↓ SB"}
+          </button>
           {dataSource && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
