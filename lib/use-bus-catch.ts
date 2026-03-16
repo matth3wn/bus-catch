@@ -52,6 +52,7 @@ export function useBusCatch(): BusCatchState {
     staleness: null,
     dataError: null,
     direction: null,
+    toggleDirection: () => {},
   });
 
   const positionHistory = useRef<PositionRecord[]>([]);
@@ -61,6 +62,8 @@ export function useBusCatch(): BusCatchState {
   const lastSuccessfulFetch = useRef<number | null>(null);
   const wasStalePrev = useRef<boolean>(false);
   const directionRef = useRef<"northbound" | "southbound" | null>(null);
+  const directionOverride = useRef<"northbound" | "southbound" | null>(null);
+  const pollNow = useRef<(() => void) | null>(null);
 
   // Vibrate on recommendation change
   const maybeVibrate = useCallback((action: string) => {
@@ -109,11 +112,28 @@ export function useBusCatch(): BusCatchState {
     };
   }, []);
 
+  // Resolve effective direction: override takes precedence over auto-detected
+  const getDirection = useCallback(() => {
+    return directionOverride.current ?? directionRef.current;
+  }, []);
+
+  // Toggle between northbound and southbound
+  const toggleDirection = useCallback(() => {
+    const current = getDirection() ?? "southbound";
+    const next = current === "northbound" ? "southbound" : "northbound";
+    directionOverride.current = next;
+    directionRef.current = next;
+
+    // Trigger immediate re-poll and recalculate
+    setState((prev) => ({ ...prev, direction: next }));
+    if (pollNow.current) pollNow.current();
+  }, [getDirection]);
+
   // Recalculate based on current state
   const recalculate = useCallback(
     (user: UserPosition | null) => {
       const now = Math.floor(Date.now() / 1000);
-      const dir = directionRef.current;
+      const dir = getDirection();
       const { stops } = dir === "northbound"
         ? getRouteData(NORTHBOUND_DIRECTION_ID)
         : getRouteData(DIRECTION_ID);
@@ -141,7 +161,7 @@ export function useBusCatch(): BusCatchState {
         dataError: dataError ?? prev.dataError,
       }));
     },
-    [maybeVibrate, computeStaleness]
+    [maybeVibrate, computeStaleness, getDirection]
   );
 
   // GPS tracking
@@ -164,19 +184,21 @@ export function useBusCatch(): BusCatchState {
         const gpsPosition: LatLng = { lat: latitude, lng: longitude };
         const timestamp = pos.timestamp / 1000;
 
-        // Update direction history and detect direction
+        // Update direction history and detect direction (only if no manual override)
         directionHistory.current.push({ position: gpsPosition, timestamp });
         // Keep last 20 samples for direction detection
         if (directionHistory.current.length > 20) {
           directionHistory.current = directionHistory.current.slice(-20);
         }
-        const detected = detectDirection(directionHistory.current);
-        if (detected) {
-          directionRef.current = detected;
+        if (!directionOverride.current) {
+          const detected = detectDirection(directionHistory.current);
+          if (detected) {
+            directionRef.current = detected;
+          }
         }
 
         // Use direction-aware route for snapping
-        const dir = directionRef.current;
+        const dir = getDirection();
         const { walkingRoute } = dir === "northbound"
           ? getRouteData(NORTHBOUND_DIRECTION_ID)
           : getRouteData(DIRECTION_ID);
@@ -232,7 +254,7 @@ export function useBusCatch(): BusCatchState {
 
     async function poll() {
       try {
-        const dir = directionRef.current;
+        const dir = getDirection();
         const dirId = dir === "northbound" ? NORTHBOUND_DIRECTION_ID : DIRECTION_ID;
 
         const [tripData, vehicleData] = await Promise.all([
@@ -273,7 +295,7 @@ export function useBusCatch(): BusCatchState {
         // Trigger recalculation with current user position
         setState((prev) => {
           const now = Math.floor(Date.now() / 1000);
-          const currentDir = directionRef.current;
+          const currentDir = getDirection();
           const { stops } = currentDir === "northbound"
             ? getRouteData(NORTHBOUND_DIRECTION_ID)
             : getRouteData(DIRECTION_ID);
@@ -302,13 +324,15 @@ export function useBusCatch(): BusCatchState {
     }
 
     poll();
+    pollNow.current = poll;
     const interval = setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      pollNow.current = null;
       clearInterval(interval);
     };
-  }, [computeStaleness]);
+  }, [computeStaleness, getDirection]);
 
-  return state;
+  return { ...state, toggleDirection };
 }

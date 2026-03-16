@@ -73,4 +73,6 @@ export interface BusCatchState {
   dataError: string | null;
   /** Detected walking direction, or null if not yet determined */
   direction: "northbound" | "southbound" | null;
+  /** Toggle between northbound and southbound (manual override) */
+  toggleDirection: () => void;
 }
