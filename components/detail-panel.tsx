@@ -10,6 +10,7 @@ import { STALENESS_WARNING_SECONDS } from "@/lib/constants";
 import { StopCard } from "@/components/stop-card";
 import { RouteDiagram } from "@/components/route-diagram";
 import { InstallPrompt } from "@/components/install-prompt";
+import RouteMapDynamic from "@/components/route-map-dynamic";
 
 interface DetailPanelProps {
   expanded: boolean;
@@ -117,6 +118,16 @@ export function DetailPanel({
             {dataError}
           </div>
         )}
+
+        {/* Map */}
+        <div className="mb-4">
+          <RouteMapDynamic
+            user={user}
+            stopAnalyses={stopAnalyses}
+            predictions={predictions}
+            direction={direction}
+          />
+        </div>
 
         {/* Route diagram + Stop cards layout */}
         <div className="flex gap-4">
