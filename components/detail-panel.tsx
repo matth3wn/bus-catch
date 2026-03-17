@@ -11,6 +11,7 @@ import { StopCard } from "@/components/stop-card";
 import { RouteDiagram } from "@/components/route-diagram";
 import { InstallPrompt } from "@/components/install-prompt";
 import RouteMapDynamic from "@/components/route-map-dynamic";
+import { TripHistory } from "@/components/trip-history";
 
 interface DetailPanelProps {
   expanded: boolean;
@@ -161,6 +162,11 @@ export function DetailPanel({
         <p className="mt-1 text-center text-xs text-neutral-600">
           Metro 222 {direction === "northbound" ? "Northbound" : "Southbound"} · Cahuenga Blvd
         </p>
+
+        {/* Trip history */}
+        <div className="mt-6">
+          <TripHistory />
+        </div>
 
         {/* Install prompt at footer */}
         <div className="mt-6 pb-safe">

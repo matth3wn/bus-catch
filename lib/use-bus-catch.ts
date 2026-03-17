@@ -20,6 +20,7 @@ import {
   DIRECTION_ID,
   NORTHBOUND_DIRECTION_ID,
 } from "./constants";
+import { TripSession } from "./trip-history";
 
 /** Map API source strings to BusCatchState dataSource values */
 function mapDataSource(
@@ -64,15 +65,46 @@ export function useBusCatch(): BusCatchState {
   const directionRef = useRef<"northbound" | "southbound" | null>(null);
   const directionOverride = useRef<"northbound" | "southbound" | null>(null);
   const pollNow = useRef<(() => void) | null>(null);
+  const tripSession = useRef(new TripSession());
 
-  // Vibrate on recommendation change
-  const maybeVibrate = useCallback((action: string) => {
+  // Vibrate + notify on recommendation change
+  const maybeVibrate = useCallback((action: string, waitStopName?: string) => {
     if (
       lastRecommendationAction.current &&
       lastRecommendationAction.current !== action
     ) {
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(action === "WAIT" ? [200, 100, 200] : [200]);
+      }
+
+      // Send notification when page is hidden (backgrounded)
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden" &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        const title = action === "WAIT"
+          ? `🚌 Wait at ${waitStopName ?? "stop"}`
+          : action === "KEEP_WALKING"
+            ? "🚶 Keep walking"
+            : "Bus data unavailable";
+        const body = action === "WAIT"
+          ? "Bus is approaching — stop and wait!"
+          : "No bus will arrive in time";
+
+        // Use service worker registration for persistent notification
+        navigator.serviceWorker?.ready.then((reg) => {
+          reg.showNotification(title, {
+            body,
+            icon: "/icon-192.png",
+            tag: "bus-catch-recommendation",
+            renotify: true,
+          } as NotificationOptions);
+        }).catch(() => {
+          // Fallback to regular notification
+          new Notification(title, { body, tag: "bus-catch-recommendation" });
+        });
       }
     }
     lastRecommendationAction.current = action;
@@ -145,21 +177,38 @@ export function useBusCatch(): BusCatchState {
         stops
       );
 
-      maybeVibrate(recommendation.action);
+      maybeVibrate(recommendation.action, recommendation.waitStop?.name);
 
       const { staleness, dataError } = computeStaleness();
 
-      setState((prev) => ({
-        ...prev,
-        user,
-        stopAnalyses: analyses,
-        recommendation,
-        staleness,
-        direction: dir,
-        // Only overwrite dataError from staleness if there's no existing fetch error
-        // or if staleness is actively producing an error
-        dataError: dataError ?? prev.dataError,
-      }));
+      setState((prev) => {
+        // Update trip session with current data source from state
+        if (user) {
+          const dirId = dir === "northbound" ? NORTHBOUND_DIRECTION_ID : DIRECTION_ID;
+          const { totalDistance } = getRouteData(dirId);
+          tripSession.current.update({
+            routeDistance: user.routeDistance,
+            totalRouteDistance: totalDistance,
+            speed: user.walkingSpeed,
+            direction: dir,
+            recommendationAction: recommendation.action,
+            waitStopName: recommendation.waitStop?.name,
+            dataSource: prev.dataSource,
+          });
+        }
+
+        return {
+          ...prev,
+          user,
+          stopAnalyses: analyses,
+          recommendation,
+          staleness,
+          direction: dir,
+          // Only overwrite dataError from staleness if there's no existing fetch error
+          // or if staleness is actively producing an error
+          dataError: dataError ?? prev.dataError,
+        };
+      });
     },
     [maybeVibrate, computeStaleness, getDirection]
   );
@@ -333,6 +382,18 @@ export function useBusCatch(): BusCatchState {
       clearInterval(interval);
     };
   }, [computeStaleness, getDirection]);
+
+  // Trip session staleness check — save if user stops moving for 5 min
+  useEffect(() => {
+    const interval = setInterval(() => {
+      tripSession.current.checkStale();
+    }, 60_000);
+    return () => {
+      clearInterval(interval);
+      // Save on unmount if there's an active session
+      tripSession.current.save();
+    };
+  }, []);
 
   return { ...state, toggleDirection };
 }

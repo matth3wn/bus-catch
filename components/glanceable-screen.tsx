@@ -1,6 +1,6 @@
 "use client";
 
-import { RecommendationAction, Recommendation } from "@/lib/types";
+import { RecommendationAction, Recommendation, StopCatchAnalysis, UserPosition } from "@/lib/types";
 
 /** Color/text/theme mapping for each recommendation action — shared constant for
  *  glanceable screen rendering and dynamic theme-color meta tag updates. */
@@ -15,6 +15,9 @@ export const RECOMMENDATION_STYLES: Record<
 
 interface GlanceableScreenProps {
   recommendation: Recommendation;
+  stopAnalyses: StopCatchAnalysis[];
+  user: UserPosition | null;
+  totalRouteDistance: number;
   dataSource: "realtime" | "schedule" | "mock" | null;
   staleness: number | null;
   dataError: string | null;
@@ -23,6 +26,18 @@ interface GlanceableScreenProps {
   direction: "northbound" | "southbound" | null;
   onTap: () => void;
   onToggleDirection: () => void;
+}
+
+/** Format seconds into a human-friendly countdown string */
+function formatCountdown(seconds: number): string {
+  if (seconds < 60) return `<1 min`;
+  const mins = Math.round(seconds / 60);
+  return `${mins} min`;
+}
+
+/** Convert meters to miles */
+function metersToMiles(m: number): string {
+  return (m / 1609.34).toFixed(1);
 }
 
 function headlineText(recommendation: Recommendation): string {
@@ -38,6 +53,9 @@ function headlineText(recommendation: Recommendation): string {
 
 export function GlanceableScreen({
   recommendation,
+  stopAnalyses,
+  user,
+  totalRouteDistance,
   dataSource,
   staleness,
   dataError,
@@ -47,6 +65,16 @@ export function GlanceableScreen({
   onTap,
   onToggleDirection,
 }: GlanceableScreenProps) {
+  // Find the recommended stop analysis for ETA display
+  const recommendedAnalysis = stopAnalyses.find((a) => a.recommended);
+
+  // Walking progress
+  const progressFraction = user && totalRouteDistance > 0
+    ? Math.min(1, Math.max(0, user.routeDistance / totalRouteDistance))
+    : null;
+  const remainingDistance = user && totalRouteDistance > 0
+    ? Math.max(0, totalRouteDistance - user.routeDistance)
+    : null;
   // Loading state: before first GPS + API response
   if (loading && dataSource === null) {
     return (
@@ -102,6 +130,47 @@ export function GlanceableScreen({
       <p className={`mt-3 px-8 text-center text-lg ${style.text} opacity-80`}>
         {recommendation.reason}
       </p>
+
+      {/* ETA countdown */}
+      {recommendedAnalysis && (
+        <div className={`mt-5 flex items-center justify-center gap-6 ${style.text}`}>
+          <div className="text-center">
+            <p className="text-2xl font-bold tabular-nums">
+              {formatCountdown(recommendedAnalysis.walkSeconds)}
+            </p>
+            <p className="text-xs uppercase tracking-wide opacity-60">walk</p>
+          </div>
+          {recommendedAnalysis.busSeconds !== null && (
+            <>
+              <div className="text-2xl font-light opacity-40">·</div>
+              <div className="text-center">
+                <p className="text-2xl font-bold tabular-nums">
+                  {formatCountdown(recommendedAnalysis.busSeconds)}
+                </p>
+                <p className="text-xs uppercase tracking-wide opacity-60">bus</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Walking progress bar */}
+      {progressFraction !== null && remainingDistance !== null && (
+        <div className="absolute inset-x-0 bottom-16 px-8 pb-safe">
+          <div className="mx-auto max-w-xs">
+            <div className="mb-1.5 flex justify-between text-xs opacity-60">
+              <span className={style.text}>{metersToMiles(remainingDistance)} mi left</span>
+              <span className={style.text}>{Math.round(progressFraction * 100)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-black/20">
+              <div
+                className="h-full rounded-full bg-white/50 transition-all duration-700"
+                style={{ width: `${progressFraction * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Direction + data source badges at bottom */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-safe" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 24px)" }}>

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useBusCatch } from "@/lib/use-bus-catch";
 import { GlanceableScreen, RECOMMENDATION_STYLES } from "@/components/glanceable-screen";
 import { DetailPanel } from "@/components/detail-panel";
+import { getRouteData } from "@/lib/route-data";
+import { DIRECTION_ID, NORTHBOUND_DIRECTION_ID } from "@/lib/constants";
 
 export default function Home() {
   const state = useBusCatch();
@@ -27,17 +29,38 @@ export default function Home() {
     }
   }, [state.recommendation.action]);
 
+  // Request notification permission on first user interaction
+  const requestNotificationPermission = useCallback(() => {
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const handleTap = useCallback(() => {
+    requestNotificationPermission();
+    setExpanded(true);
+  }, [requestNotificationPermission]);
+
+  const dirId = state.direction === "northbound" ? NORTHBOUND_DIRECTION_ID : DIRECTION_ID;
+  const { totalDistance } = getRouteData(dirId);
+
   return (
     <>
       <GlanceableScreen
         recommendation={state.recommendation}
+        stopAnalyses={state.stopAnalyses}
+        user={state.user}
+        totalRouteDistance={totalDistance}
         dataSource={state.dataSource}
         staleness={state.staleness}
         dataError={state.dataError}
         gpsError={state.gpsError}
         loading={state.loading}
         direction={state.direction}
-        onTap={() => setExpanded(true)}
+        onTap={handleTap}
         onToggleDirection={state.toggleDirection}
       />
       <DetailPanel
