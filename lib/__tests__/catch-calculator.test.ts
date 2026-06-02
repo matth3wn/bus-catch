@@ -99,14 +99,25 @@ describe("calculateCatch — scenario tests", () => {
     expect(recommendation.waitStop?.name).toMatch(/Lankershim/);
   });
 
-  it("Mid-walk, bus 5min out: KEEP_WALKING (margin < 90s buffer)", () => {
-    // User at routeDist=1100 (just before Broadlawn at ~1099)
-    // Broadlawn walk ~0s (basically there), but stop.routeDistance <= user.routeDistance
-    // So Broadlawn is behind/at user. Next ahead: Universal Studios at ~1406
-    // Walk to Universal: (1406 - 1100) / 1.4 = ~219s
-    // Bus in 300s, margin = 300 - 219 = 81s < 90s buffer → not catchable
+  it("Mid-walk just past Broadlawn: WAIT there (re-eval tolerance keeps it catchable)", () => {
+    // User at routeDist=1100, ~1m past Broadlawn (~1099). Within the 25m re-eval
+    // tolerance the user is essentially AT Broadlawn (walk ≈ 0s), and a bus 5min
+    // out is easily catchable — so WAIT here rather than discarding the stop.
     const user = makeUser(1100);
     const preds = makePredictionsAllStops(300);
+    const { recommendation } = calculateCatch(user, preds, NOW);
+
+    expect(recommendation.action).toBe("WAIT");
+    expect(recommendation.waitStop?.id).toBe(BROADLAWN.id);
+    expect(recommendation.reason).toMatch(/Wait here/i);
+  });
+
+  it("Mid-walk well past a stop: KEEP_WALKING when next stop's margin < buffer", () => {
+    // User at routeDist=1130, ~31m past Broadlawn (beyond the 25m tolerance → dropped).
+    // Next stop Universal Studios (~1406): walk (1406-1130)/1.4 ≈ 197s.
+    // Bus in 280s → margin = 83s < 90s buffer → not catchable.
+    const user = makeUser(1130);
+    const preds = makePredictionsAllStops(280);
     const { recommendation } = calculateCatch(user, preds, NOW);
 
     expect(recommendation.action).toBe("KEEP_WALKING");
@@ -288,5 +299,96 @@ describe("calculateCatch — northbound", () => {
     const user = makeNorthboundUser(NB_LAKERIDGE.routeDistance + 10);
     const { recommendation } = calculateCatch(user, [], NOW, NORTHBOUND_STOPS);
     expect(recommendation.action).toBe("NO_DATA");
+  });
+});
+
+// ---------- Confidence & uncertainty ----------
+
+describe("calculateCatch — confidence and intervals", () => {
+  it("emits a symmetric interval around the point ETA", () => {
+    const user = makeUser(0);
+    const preds = [makePrediction(LANKERSHIM.id, 300)];
+    const { analyses } = calculateCatch(user, preds, NOW);
+    const a = analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+
+    expect(a.busSeconds).toBe(300);
+    expect(a.busSecondsLow).not.toBeNull();
+    expect(a.busSecondsHigh).not.toBeNull();
+    expect(a.busSecondsLow!).toBeLessThan(a.busSeconds!);
+    expect(a.busSecondsHigh!).toBeGreaterThan(a.busSeconds!);
+    expect(a.confidence).not.toBeNull();
+  });
+
+  it("rates realtime + certain predictions as high confidence", () => {
+    const user = makeUser(0);
+    const preds: BusPrediction[] = [
+      { tripId: "t1", stopId: LANKERSHIM.id, arrivalTime: NOW + 300, uncertainty: 0 },
+    ];
+    const { analyses } = calculateCatch(user, preds, NOW, undefined, {
+      dataSource: "realtime",
+      staleness: 0,
+    });
+    const a = analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+    expect(a.confidence).toBe("high");
+  });
+
+  it("rates schedule data as low confidence and widens the interval", () => {
+    const user = makeUser(0);
+    const preds = [makePrediction(LANKERSHIM.id, 300)];
+    const realtime = calculateCatch(user, preds, NOW, undefined, { dataSource: "realtime", staleness: 0 });
+    const schedule = calculateCatch(user, preds, NOW, undefined, { dataSource: "schedule", staleness: 0 });
+
+    const rt = realtime.analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+    const sc = schedule.analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+
+    expect(sc.confidence).toBe("low");
+    const rtWidth = rt.busSecondsHigh! - rt.busSecondsLow!;
+    const scWidth = sc.busSecondsHigh! - sc.busSecondsLow!;
+    expect(scWidth).toBeGreaterThan(rtWidth);
+  });
+
+  it("widens the catch buffer when data is uncertain (a marginal stop becomes uncatchable)", () => {
+    // Pick a margin that's catchable with the base 90s buffer but not with extra
+    // schedule uncertainty. User at start; bus at Lankershim (~71m, walk ~51s).
+    // busSeconds 150 → margin 99 > 90 (catchable), but schedule adds +60 → buffer 150 > 99.
+    const user = makeUser(0);
+    const preds = [makePrediction(LANKERSHIM.id, 150)];
+
+    const realtime = calculateCatch(user, preds, NOW, undefined, { dataSource: "realtime", staleness: 0 });
+    const schedule = calculateCatch(user, preds, NOW, undefined, { dataSource: "schedule", staleness: 0 });
+
+    expect(realtime.analyses.find((x) => x.stop.id === LANKERSHIM.id)!.catchable).toBe(true);
+    expect(schedule.analyses.find((x) => x.stop.id === LANKERSHIM.id)!.catchable).toBe(false);
+  });
+
+  it("widens the interval using per-stop reliability volatility", () => {
+    const user = makeUser(0);
+    const preds = [makePrediction(LANKERSHIM.id, 300)];
+    const reliabilityByStop = new Map<string, number>([[LANKERSHIM.id, 120]]);
+
+    const base = calculateCatch(user, preds, NOW, undefined, { dataSource: "realtime", staleness: 0 });
+    const noisy = calculateCatch(user, preds, NOW, undefined, {
+      dataSource: "realtime",
+      staleness: 0,
+      reliabilityByStop,
+    });
+
+    const b = base.analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+    const n = noisy.analyses.find((x) => x.stop.id === LANKERSHIM.id)!;
+    expect(n.busSecondsHigh! - n.busSecondsLow!).toBeGreaterThan(b.busSecondsHigh! - b.busSecondsLow!);
+  });
+
+  it("drops physically-impossible predictions before deciding", () => {
+    // Same trip: Lankershim (nearer, ~71m) at 400s, Regal (further, ~475m) at 100s.
+    // Regal-at-100 is impossible relative to Lankershim-at-400 and must be dropped,
+    // so Regal should NOT be treated as an imminent catch.
+    const user = makeUser(0);
+    const preds = [
+      makePrediction(LANKERSHIM.id, 400, "trip-x"),
+      makePrediction(REGAL.id, 100, "trip-x"),
+    ];
+    const { analyses } = calculateCatch(user, preds, NOW);
+    const regal = analyses.find((x) => x.stop.id === REGAL.id)!;
+    expect(regal.busSeconds).toBeNull();
   });
 });

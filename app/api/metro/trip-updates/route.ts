@@ -114,15 +114,41 @@ function parseSwiftlyResponse(data: Record<string, unknown>, directionId: number
       const stopId = String(stu.stopId || stu.stop_id || "");
       if (!getStopIds(directionId).has(stopId)) continue;
 
+      const scheduleRelationship = stu.scheduleRelationship || stu.schedule_relationship;
+      const scheduleRel = scheduleRelationship ? String(scheduleRelationship) : undefined;
+
       const arrival = (stu.arrival || stu.Arrival) as Record<string, unknown> | undefined;
       const departure = (stu.departure || stu.Departure) as Record<string, unknown> | undefined;
       const timeObj = arrival || departure;
-      if (!timeObj) continue;
 
+      // NO_DATA means the feed explicitly has no real-time prediction for this stop.
+      // Surface it so the client can fall back / widen its buffer rather than guess.
+      if (!timeObj) {
+        if (scheduleRel === "NO_DATA") {
+          predictions.push({ tripId, vehicleId, stopId, arrivalTime: 0, scheduleRelationship: scheduleRel });
+        }
+        continue;
+      }
+
+      // Per GTFS-RT spec, `time` takes precedence over `delay`.
       const arrivalTime = Number(timeObj.time || timeObj.Time || 0);
       if (arrivalTime === 0) continue;
 
-      predictions.push({ tripId, vehicleId, stopId, arrivalTime });
+      // uncertainty: 0 = certain, omitted = unknown. Preserve the distinction.
+      const rawUncertainty = timeObj.uncertainty ?? timeObj.Uncertainty;
+      const uncertainty =
+        rawUncertainty === undefined || rawUncertainty === null
+          ? undefined
+          : Number(rawUncertainty);
+
+      predictions.push({
+        tripId,
+        vehicleId,
+        stopId,
+        arrivalTime,
+        uncertainty,
+        scheduleRelationship: scheduleRel,
+      });
     }
   }
 

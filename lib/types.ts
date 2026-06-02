@@ -30,10 +30,25 @@ export interface BusPrediction {
   tripId: string;
   vehicleId?: string;
   vehiclePosition?: LatLng;
+  /** When the vehicle position was measured (Unix seconds) — used for dead-reckoning */
+  vehicleTimestamp?: number;
   stopId: string;
   /** Predicted arrival as Unix timestamp (seconds) */
   arrivalTime: number;
+  /**
+   * GTFS-RT prediction uncertainty in seconds.
+   * 0 = certain, undefined = unknown. Larger = less trustworthy.
+   */
+  uncertainty?: number;
+  /**
+   * GTFS-RT schedule_relationship for this stop, when provided.
+   * "NO_DATA" means the feed has no real-time data for this stop.
+   */
+  scheduleRelationship?: string;
 }
+
+/** Confidence level for a bus arrival prediction, derived from feed quality. */
+export type Confidence = "high" | "medium" | "low";
 
 export interface StopCatchAnalysis {
   stop: Stop;
@@ -41,6 +56,12 @@ export interface StopCatchAnalysis {
   walkSeconds: number;
   /** Seconds until bus arrives at this stop (null if no prediction) */
   busSeconds: number | null;
+  /** Lower bound of the bus-arrival confidence interval, in seconds (null if no prediction) */
+  busSecondsLow: number | null;
+  /** Upper bound of the bus-arrival confidence interval, in seconds (null if no prediction) */
+  busSecondsHigh: number | null;
+  /** Confidence in the bus prediction for this stop (null if no prediction) */
+  confidence: Confidence | null;
   /** Whether user can reach the stop before the bus */
   catchable: boolean;
   /** Whether this is the recommended stop to wait at */

@@ -1,5 +1,9 @@
 import { LatLng } from "./types";
-import { DIRECTION_MIN_DISPLACEMENT, DIRECTION_MIN_SAMPLES } from "./constants";
+import {
+  DIRECTION_MIN_DISPLACEMENT,
+  DIRECTION_MIN_SAMPLES,
+  DIRECTION_FLIP_DISPLACEMENT,
+} from "./constants";
 
 export interface PositionSample {
   position: LatLng;
@@ -12,16 +16,23 @@ export interface PositionSample {
  * Computes net displacement vector from the oldest to newest sample.
  * On Cahuenga Blvd, northbound = increasing latitude, southbound = decreasing.
  *
+ * Hysteresis: once a direction is established, flipping it requires a larger
+ * net displacement (DIRECTION_FLIP_DISPLACEMENT) than first acquiring one
+ * (DIRECTION_MIN_DISPLACEMENT). This stops GPS jitter on a short route from
+ * thrashing the direction back and forth. Pass `current` to enable it.
+ *
  * Returns:
  * - 'northbound' if net movement is clearly north (lat increasing)
  * - 'southbound' if net movement is clearly south (lat decreasing)
- * - null if insufficient data or ambiguous (below displacement threshold)
+ * - the unchanged `current` direction when movement is below the flip threshold
+ * - null if insufficient data or ambiguous and no current direction is held
  */
 export function detectDirection(
-  history: PositionSample[]
+  history: PositionSample[],
+  current: "northbound" | "southbound" | null = null
 ): "northbound" | "southbound" | null {
   if (history.length < DIRECTION_MIN_SAMPLES) {
-    return null;
+    return current;
   }
 
   const first = history[0];
@@ -32,9 +43,18 @@ export function detectDirection(
   const latDisplacementMeters =
     (last.position.lat - first.position.lat) * 111_320;
 
-  if (Math.abs(latDisplacementMeters) < DIRECTION_MIN_DISPLACEMENT) {
-    return null;
+  const candidate = latDisplacementMeters > 0 ? "northbound" : "southbound";
+  const magnitude = Math.abs(latDisplacementMeters);
+
+  // No direction held yet: acquire on the base threshold.
+  if (current === null) {
+    return magnitude < DIRECTION_MIN_DISPLACEMENT ? null : candidate;
   }
 
-  return latDisplacementMeters > 0 ? "northbound" : "southbound";
+  // Same direction as held, or movement too small to flip: keep current.
+  if (candidate === current || magnitude < DIRECTION_FLIP_DISPLACEMENT) {
+    return current;
+  }
+
+  return candidate;
 }

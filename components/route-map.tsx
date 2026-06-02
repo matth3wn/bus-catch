@@ -13,6 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { BusPrediction, StopCatchAnalysis, UserPosition } from "@/lib/types";
 import { getRouteData } from "@/lib/route-data";
+import { deadReckonBuses } from "@/lib/dead-reckoning";
 import { DIRECTION_ID, NORTHBOUND_DIRECTION_ID } from "@/lib/constants";
 
 interface RouteMapProps {
@@ -87,23 +88,19 @@ export function RouteMap({
     return [mid.lat, mid.lng];
   }, [walkingRoute]);
 
-  // Deduplicate bus positions by trip
+  // Dead-reckon each bus forward from its last-reported position to "now", so a
+  // stale feed fix is drawn where the bus likely is rather than where it was.
   const busPositions = useMemo(() => {
-    const map = new Map<
-      string,
-      { tripId: string; lat: number; lng: number }
-    >();
-    for (const p of predictions) {
-      if (p.vehiclePosition && !map.has(p.tripId)) {
-        map.set(p.tripId, {
-          tripId: p.tripId,
-          lat: p.vehiclePosition.lat,
-          lng: p.vehiclePosition.lng,
-        });
-      }
-    }
-    return Array.from(map.values());
-  }, [predictions]);
+    const nowSeconds = Date.now() / 1000;
+    const reckoned = deadReckonBuses(predictions, walkingRoute, stops, nowSeconds);
+    return Array.from(reckoned.values()).map((b) => ({
+      tripId: b.tripId,
+      lat: b.position.lat,
+      lng: b.position.lng,
+      ageSeconds: b.ageSeconds,
+      projected: b.projected,
+    }));
+  }, [predictions, walkingRoute, stops]);
 
   return (
     <div className="route-map-container relative overflow-hidden rounded-xl">
@@ -232,7 +229,14 @@ export function RouteMap({
               offset={[0, -8]}
               className="route-map-tooltip"
             >
-              <span className="text-xs font-semibold">🚌 Bus 222</span>
+              <span className="text-xs font-semibold">
+                🚌 Bus 222
+                {bus.projected
+                  ? " (est.)"
+                  : bus.ageSeconds > 30
+                    ? ` (${Math.round(bus.ageSeconds)}s old)`
+                    : ""}
+              </span>
             </Tooltip>
           </CircleMarker>
         ))}

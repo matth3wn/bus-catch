@@ -64,21 +64,42 @@ export function parseMetroTripDetail(data: unknown[], directionId: number = DIRE
     const vehiclePosition: LatLng | undefined = vehiclePos
       ? { lat: Number(vehiclePos.lat || 0), lng: Number(vehiclePos.lng || 0) }
       : undefined;
+    const vehicleTimestamp = vehicle?.timestamp
+      ? Number(vehicle.timestamp)
+      : undefined;
 
     const stopTimeUpdates = (t.stop_time_updates || []) as Array<Record<string, unknown>>;
 
     for (const stu of stopTimeUpdates) {
       const stopId = String(stu.stop_id || "");
+      const scheduleRel = stu.schedule_relationship
+        ? String(stu.schedule_relationship)
+        : undefined;
       const arrival = stu.arrival as Record<string, unknown> | undefined;
       const arrivalTime = arrival ? Number(arrival.time || 0) : 0;
-      if (arrivalTime === 0) continue;
+
+      if (arrivalTime === 0) {
+        if (scheduleRel === "NO_DATA") {
+          predictions.push({ tripId, vehicleId, vehiclePosition, vehicleTimestamp, stopId, arrivalTime: 0, scheduleRelationship: scheduleRel });
+        }
+        continue;
+      }
+
+      const rawUncertainty = arrival?.uncertainty;
+      const uncertainty =
+        rawUncertainty === undefined || rawUncertainty === null
+          ? undefined
+          : Number(rawUncertainty);
 
       predictions.push({
         tripId,
         vehicleId,
         vehiclePosition,
+        vehicleTimestamp,
         stopId,
         arrivalTime,
+        uncertainty,
+        scheduleRelationship: scheduleRel,
       });
     }
   }

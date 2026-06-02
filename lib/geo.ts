@@ -68,3 +68,30 @@ export function walkTimeSeconds(fromDistance: number, toDistance: number, speedM
   if (delta <= 0) return 0;
   return delta / speedMs;
 }
+
+/**
+ * Interpolate the lat/lng of a point that is `distance` meters along the route.
+ * Clamps to the route endpoints when out of range.
+ */
+export function pointAtRouteDistance(route: RoutePoint[], distance: number): LatLng {
+  if (route.length === 0) return { lat: 0, lng: 0 };
+  if (distance <= 0) return { lat: route[0].lat, lng: route[0].lng };
+
+  const last = route[route.length - 1];
+  if (distance >= last.cumulativeDistance) return { lat: last.lat, lng: last.lng };
+
+  for (let i = 0; i < route.length - 1; i++) {
+    const a = route[i];
+    const b = route[i + 1];
+    if (distance <= b.cumulativeDistance) {
+      const segLen = b.cumulativeDistance - a.cumulativeDistance;
+      const t = segLen === 0 ? 0 : (distance - a.cumulativeDistance) / segLen;
+      return {
+        lat: a.lat + t * (b.lat - a.lat),
+        lng: a.lng + t * (b.lng - a.lng),
+      };
+    }
+  }
+
+  return { lat: last.lat, lng: last.lng };
+}

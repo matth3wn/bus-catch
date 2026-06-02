@@ -37,3 +37,18 @@ export function estimateSpeed(
   if (speed < 0.5 || speed > 3.0) return DEFAULT_WALKING_SPEED;
   return speed;
 }
+
+/**
+ * Exponential moving average for walking speed. The raw window estimate is jumpy
+ * (GPS noise, brief stops); EMA produces a steadier value that the catch math and
+ * walk-time countdown can rely on. Pass the previous smoothed value (or null on
+ * the first sample) and the freshly measured speed.
+ */
+export function smoothSpeed(
+  previous: number | null,
+  measured: number,
+  alpha: number
+): number {
+  if (previous === null) return measured;
+  return previous + alpha * (measured - previous);
+}

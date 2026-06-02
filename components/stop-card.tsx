@@ -1,6 +1,6 @@
 "use client";
 
-import { StopCatchAnalysis } from "@/lib/types";
+import { Confidence, StopCatchAnalysis } from "@/lib/types";
 
 function formatSeconds(s: number | null): string {
   if (s === null) return "--";
@@ -10,8 +10,34 @@ function formatSeconds(s: number | null): string {
   return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
 }
 
+/** Format the bus arrival as a confidence range, e.g. "3–6m", falling back to a point. */
+function formatBusRange(
+  busSeconds: number | null,
+  low: number | null,
+  high: number | null
+): string {
+  if (busSeconds === null) return "--";
+  if (low === null || high === null) return formatSeconds(busSeconds);
+  return `${formatSeconds(low)}–${formatSeconds(high)}`;
+}
+
+const CONFIDENCE_DOT: Record<Confidence, { color: string; title: string }> = {
+  high: { color: "bg-green-400", title: "High confidence" },
+  medium: { color: "bg-yellow-400", title: "Approximate" },
+  low: { color: "bg-red-400", title: "Low confidence" },
+};
+
 export function StopCard({ analysis }: { analysis: StopCatchAnalysis }) {
-  const { stop, walkSeconds, busSeconds, catchable, recommended } = analysis;
+  const {
+    stop,
+    walkSeconds,
+    busSeconds,
+    busSecondsLow,
+    busSecondsHigh,
+    confidence,
+    catchable,
+    recommended,
+  } = analysis;
 
   // Don't render stops behind the user
   if (walkSeconds <= 0 && !recommended) return null;
@@ -41,15 +67,21 @@ export function StopCard({ analysis }: { analysis: StopCatchAnalysis }) {
           <span className="text-neutral-500">Walk</span>
           <span className="ml-2 font-mono text-neutral-300">{formatSeconds(walkSeconds)}</span>
         </div>
-        <div>
+        <div className="flex items-center">
           <span className="text-neutral-500">Bus</span>
           <span
             className={`ml-2 font-mono ${
               busSeconds !== null && catchable ? "text-green-400" : "text-neutral-300"
             }`}
           >
-            {formatSeconds(busSeconds)}
+            {formatBusRange(busSeconds, busSecondsLow, busSecondsHigh)}
           </span>
+          {confidence && (
+            <span
+              className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${CONFIDENCE_DOT[confidence].color}`}
+              title={CONFIDENCE_DOT[confidence].title}
+            />
+          )}
         </div>
       </div>
     </div>
