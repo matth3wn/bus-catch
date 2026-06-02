@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { haversine, snapToRoute, walkTimeSeconds } from "@/lib/geo";
+import { haversine, snapToRoute, walkTimeSeconds, pointAtRouteDistance } from "@/lib/geo";
 import { WALKING_ROUTE, TOTAL_ROUTE_DISTANCE, NORTHBOUND_WALKING_ROUTE, NORTHBOUND_TOTAL_ROUTE_DISTANCE } from "@/lib/route-data";
 
 // ---------- haversine ----------
@@ -152,5 +152,36 @@ describe("snapToRoute — northbound", () => {
     const sbEnd = WALKING_ROUTE[WALKING_ROUTE.length - 1];
     expect(nbStart.lat).toBeCloseTo(sbEnd.lat, 3);
     expect(nbStart.lng).toBeCloseTo(sbEnd.lng, 3);
+  });
+});
+
+// ---------- pointAtRouteDistance ----------
+
+describe("pointAtRouteDistance", () => {
+  it("returns the start point at distance 0", () => {
+    const p = pointAtRouteDistance(WALKING_ROUTE, 0);
+    expect(p.lat).toBeCloseTo(WALKING_ROUTE[0].lat, 6);
+    expect(p.lng).toBeCloseTo(WALKING_ROUTE[0].lng, 6);
+  });
+
+  it("clamps to the end point beyond the route length", () => {
+    const end = WALKING_ROUTE[WALKING_ROUTE.length - 1];
+    const p = pointAtRouteDistance(WALKING_ROUTE, TOTAL_ROUTE_DISTANCE + 1000);
+    expect(p.lat).toBeCloseTo(end.lat, 6);
+    expect(p.lng).toBeCloseTo(end.lng, 6);
+  });
+
+  it("round-trips: snapping an interpolated point yields a near-equal distance", () => {
+    const target = TOTAL_ROUTE_DISTANCE / 2;
+    const p = pointAtRouteDistance(WALKING_ROUTE, target);
+    const snap = snapToRoute(p, WALKING_ROUTE);
+    expect(snap.routeDistance).toBeCloseTo(target, -1); // within ~5m
+  });
+
+  it("interpolates within a segment monotonically", () => {
+    const a = pointAtRouteDistance(WALKING_ROUTE, 100);
+    const b = pointAtRouteDistance(WALKING_ROUTE, 200);
+    // Distinct points further along the route
+    expect(a).not.toEqual(b);
   });
 });

@@ -22,6 +22,64 @@ export const STALENESS_ERROR_SECONDS = 120;
 /** Seconds of position history to use for speed estimation */
 export const SPEED_HISTORY_WINDOW = 30;
 
+/**
+ * Exponential-moving-average smoothing factor for walking speed (0–1).
+ * Lower = smoother/slower to react; higher = noisier/faster to react.
+ */
+export const SPEED_EMA_ALPHA = 0.35;
+
+/**
+ * EMA smoothing factor for bus arrival-time predictions across polls (0–1).
+ * Tames the countdown jitter caused by raw feed predictions hopping around.
+ */
+export const ETA_EMA_ALPHA = 0.5;
+
+/**
+ * If a fresh prediction differs from the smoothed value by more than this many
+ * seconds, snap to it instead of easing — the bus genuinely jumped (re-route,
+ * new trip, long dwell), so smoothing would lag reality.
+ */
+export const ETA_SNAP_THRESHOLD_SECONDS = 120;
+
+/**
+ * Backward tolerance (meters) when deciding whether a stop is still "ahead".
+ * GPS drift can momentarily place the user slightly past a stop; without this
+ * the stop would be permanently excluded from catch evaluation.
+ */
+export const STOP_REEVAL_TOLERANCE_METERS = 25;
+
+/**
+ * Extra catch-buffer seconds added per second of prediction uncertainty,
+ * capped by UNCERTAINTY_BUFFER_MAX. Lets a noisy feed widen the safety margin.
+ */
+export const UNCERTAINTY_BUFFER_FACTOR = 0.5;
+export const UNCERTAINTY_BUFFER_MAX = 120;
+
+/** Extra catch-buffer seconds when relying on the static schedule (no real-time). */
+export const SCHEDULE_BUFFER_SECONDS = 60;
+
+/** Extra catch-buffer seconds when data is stale (per second past the warning threshold, capped). */
+export const STALENESS_BUFFER_MAX = 60;
+
+/**
+ * Minimum half-width (seconds) of the displayed arrival confidence interval,
+ * even for "certain" predictions — GPS/feed latency means a point ETA is never exact.
+ */
+export const MIN_INTERVAL_HALF_WIDTH_SECONDS = 30;
+
+/** Minimum displacement (meters) required to FLIP an already-established direction. */
+export const DIRECTION_FLIP_DISPLACEMENT = 60;
+
+/**
+ * Cap on how far forward (seconds) a stale vehicle position is dead-reckoned.
+ * Beyond this we stop projecting — the estimate would be more guess than signal.
+ */
+export const MAX_DEAD_RECKON_SECONDS = 90;
+
+/** Plausible bus speed bounds (m/s) for dead-reckoning sanity (~0.7–22 m/s ≈ 1.5–50 mph). */
+export const MIN_BUS_SPEED = 0.7;
+export const MAX_BUS_SPEED = 22;
+
 /** Route 222 identifiers in GTFS / Swiftly */
 export const ROUTE_ID = "222-13196";
 export const ROUTE_SHORT_NAME = "222";

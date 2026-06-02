@@ -3,24 +3,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BusCatchState, BusPrediction, LatLng, UserPosition } from "./types";
 import { snapToRoute } from "./geo";
-import { haversine } from "./geo";
-import { calculateCatch } from "./catch-calculator";
+import { calculateCatch, CatchOptions } from "./catch-calculator";
 import { fetchTripUpdates, fetchVehiclePositions } from "./metro-api";
-import { estimateSpeed, PositionRecord } from "./speed";
+import { estimateSpeed, smoothSpeed, PositionRecord } from "./speed";
 import { detectDirection, PositionSample } from "./direction";
+import { EtaSmoother } from "./eta-smoothing";
+import { ArrivalHistory } from "./arrival-history";
 import { getRouteData } from "./route-data";
 import {
-  DEFAULT_WALKING_SPEED,
   POLL_INTERVAL_MS,
   MAX_GPS_ACCURACY,
   MAX_OFF_ROUTE_DISTANCE,
   SPEED_HISTORY_WINDOW,
+  SPEED_EMA_ALPHA,
   STALENESS_WARNING_SECONDS,
   STALENESS_ERROR_SECONDS,
   DIRECTION_ID,
   NORTHBOUND_DIRECTION_ID,
 } from "./constants";
 import { TripSession } from "./trip-history";
+
+type DataSource = "realtime" | "schedule" | "mock" | null;
 
 /** Map API source strings to BusCatchState dataSource values */
 function mapDataSource(
@@ -59,6 +62,11 @@ export function useBusCatch(): BusCatchState {
   const positionHistory = useRef<PositionRecord[]>([]);
   const directionHistory = useRef<PositionSample[]>([]);
   const predictionsRef = useRef<BusPrediction[]>([]);
+  const smoothedSpeed = useRef<number | null>(null);
+  const etaSmoother = useRef(new EtaSmoother());
+  const arrivalHistory = useRef(new ArrivalHistory());
+  const dataSourceRef = useRef<DataSource>(null);
+  const reliabilityRef = useRef<Map<string, number>>(new Map());
   const lastRecommendationAction = useRef<string | null>(null);
   const lastSuccessfulFetch = useRef<number | null>(null);
   const wasStalePrev = useRef<boolean>(false);
@@ -144,6 +152,19 @@ export function useBusCatch(): BusCatchState {
     };
   }, []);
 
+  // Build confidence-aware options for calculateCatch from the latest feed state.
+  const catchOptions = useCallback((): CatchOptions => {
+    const staleness =
+      lastSuccessfulFetch.current === null
+        ? null
+        : (Date.now() - lastSuccessfulFetch.current) / 1000;
+    return {
+      dataSource: dataSourceRef.current,
+      staleness,
+      reliabilityByStop: reliabilityRef.current,
+    };
+  }, []);
+
   // Resolve effective direction: override takes precedence over auto-detected
   const getDirection = useCallback(() => {
     return directionOverride.current ?? directionRef.current;
@@ -174,7 +195,8 @@ export function useBusCatch(): BusCatchState {
         user,
         predictionsRef.current,
         now,
-        stops
+        stops,
+        catchOptions()
       );
 
       maybeVibrate(recommendation.action, recommendation.waitStop?.name);
@@ -210,7 +232,7 @@ export function useBusCatch(): BusCatchState {
         };
       });
     },
-    [maybeVibrate, computeStaleness, getDirection]
+    [maybeVibrate, computeStaleness, getDirection, catchOptions]
   );
 
   // GPS tracking
@@ -240,7 +262,11 @@ export function useBusCatch(): BusCatchState {
           directionHistory.current = directionHistory.current.slice(-20);
         }
         if (!directionOverride.current) {
-          const detected = detectDirection(directionHistory.current);
+          // Pass the current direction so hysteresis prevents jitter from flipping it.
+          const detected = detectDirection(
+            directionHistory.current,
+            directionRef.current
+          );
           if (detected) {
             directionRef.current = detected;
           }
@@ -269,14 +295,21 @@ export function useBusCatch(): BusCatchState {
         );
 
         const now = Date.now() / 1000;
+        const measuredSpeed = estimateSpeed(
+          positionHistory.current,
+          now,
+          SPEED_HISTORY_WINDOW
+        );
+        // Smooth the jumpy window estimate with an EMA so walk-time doesn't flicker.
+        smoothedSpeed.current = smoothSpeed(
+          smoothedSpeed.current,
+          measuredSpeed,
+          SPEED_EMA_ALPHA
+        );
         const user: UserPosition = {
           position: snap.point,
           routeDistance: snap.routeDistance,
-          walkingSpeed: estimateSpeed(
-            positionHistory.current,
-            now,
-            SPEED_HISTORY_WINDOW
-          ),
+          walkingSpeed: smoothedSpeed.current,
           accuracy,
           timestamp,
         };
@@ -316,20 +349,43 @@ export function useBusCatch(): BusCatchState {
         // Record successful fetch time and data source
         lastSuccessfulFetch.current = Date.now();
         const dataSource = mapDataSource(tripData.source);
+        dataSourceRef.current = dataSource;
+        const nowSec = Math.floor(Date.now() / 1000);
 
-        // Merge vehicle positions into predictions
+        // Merge vehicle positions (and their timestamps) into predictions
         const vehicleMap = new Map(
           vehicleData.vehicles.map((v) => [v.tripId, v])
         );
-        const predictions = tripData.predictions.map((p) => {
+        const merged = tripData.predictions.map((p) => {
           const vehicle = vehicleMap.get(p.tripId);
           return {
             ...p,
             vehicleId: p.vehicleId || vehicle?.vehicleId,
-            vehiclePosition: vehicle?.position,
+            vehiclePosition: p.vehiclePosition ?? vehicle?.position,
+            vehicleTimestamp: p.vehicleTimestamp ?? vehicle?.timestamp,
           };
         });
 
+        // Log raw (pre-smoothing) predictions so reliability reflects true feed churn.
+        arrivalHistory.current.record(
+          merged
+            .filter((p) => p.arrivalTime > 0)
+            .map((p) => ({ tripId: p.tripId, stopId: p.stopId, arrivalTime: p.arrivalTime })),
+          new Date()
+        );
+
+        // Refresh per-stop reliability (prediction volatility) for the active direction.
+        const { stops } = getRouteData(dirId);
+        const nowDate = new Date();
+        const reliability = new Map<string, number>();
+        for (const stop of stops) {
+          const r = arrivalHistory.current.getStopReliability(stop.id, nowDate);
+          if (r) reliability.set(stop.id, r.stdSeconds);
+        }
+        reliabilityRef.current = reliability;
+
+        // Smooth arrival predictions across polls to tame countdown jitter.
+        const predictions = etaSmoother.current.smooth(merged, nowSec);
         predictionsRef.current = predictions;
 
         setState((prev) => ({
@@ -343,16 +399,12 @@ export function useBusCatch(): BusCatchState {
 
         // Trigger recalculation with current user position
         setState((prev) => {
-          const now = Math.floor(Date.now() / 1000);
-          const currentDir = getDirection();
-          const { stops } = currentDir === "northbound"
-            ? getRouteData(NORTHBOUND_DIRECTION_ID)
-            : getRouteData(DIRECTION_ID);
           const { analyses, recommendation } = calculateCatch(
             prev.user,
             predictions,
-            now,
-            stops
+            nowSec,
+            stops,
+            catchOptions()
           );
           return { ...prev, stopAnalyses: analyses, recommendation };
         });
@@ -381,7 +433,7 @@ export function useBusCatch(): BusCatchState {
       pollNow.current = null;
       clearInterval(interval);
     };
-  }, [computeStaleness, getDirection]);
+  }, [computeStaleness, getDirection, catchOptions]);
 
   // Trip session staleness check — save if user stops moving for 5 min
   useEffect(() => {

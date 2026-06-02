@@ -1,6 +1,7 @@
 "use client";
 
-import { RecommendationAction, Recommendation, StopCatchAnalysis, UserPosition } from "@/lib/types";
+import { Confidence, RecommendationAction, Recommendation, StopCatchAnalysis, UserPosition } from "@/lib/types";
+import { EtaDotplot } from "@/components/eta-dotplot";
 
 /** Color/text/theme mapping for each recommendation action — shared constant for
  *  glanceable screen rendering and dynamic theme-color meta tag updates. */
@@ -34,6 +35,21 @@ function formatCountdown(seconds: number): string {
   const mins = Math.round(seconds / 60);
   return `${mins} min`;
 }
+
+/** Format a confidence interval (seconds) as a minute range, e.g. "4–7 min". */
+function formatRange(low: number, high: number): string {
+  const lo = Math.max(0, Math.round(low / 60));
+  const hi = Math.round(high / 60);
+  if (hi < 1) return "<1 min";
+  if (lo === hi) return `~${hi} min`;
+  return `${lo}–${hi} min`;
+}
+
+const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  high: "high confidence",
+  medium: "approximate",
+  low: "low confidence",
+};
 
 /** Convert meters to miles */
 function metersToMiles(m: number): string {
@@ -131,26 +147,55 @@ export function GlanceableScreen({
         {recommendation.reason}
       </p>
 
-      {/* ETA countdown */}
+      {/* ETA countdown + arrival uncertainty */}
       {recommendedAnalysis && (
-        <div className={`mt-5 flex items-center justify-center gap-6 ${style.text}`}>
-          <div className="text-center">
-            <p className="text-2xl font-bold tabular-nums">
-              {formatCountdown(recommendedAnalysis.walkSeconds)}
-            </p>
-            <p className="text-xs uppercase tracking-wide opacity-60">walk</p>
+        <div className={`mt-5 flex flex-col items-center ${style.text}`}>
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold tabular-nums">
+                {formatCountdown(recommendedAnalysis.walkSeconds)}
+              </p>
+              <p className="text-xs uppercase tracking-wide opacity-60">walk</p>
+            </div>
+            {recommendedAnalysis.busSeconds !== null && (
+              <>
+                <div className="text-2xl font-light opacity-40">·</div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold tabular-nums">
+                    {recommendedAnalysis.busSecondsLow !== null &&
+                    recommendedAnalysis.busSecondsHigh !== null
+                      ? formatRange(
+                          recommendedAnalysis.busSecondsLow,
+                          recommendedAnalysis.busSecondsHigh
+                        )
+                      : formatCountdown(recommendedAnalysis.busSeconds)}
+                  </p>
+                  <p className="text-xs uppercase tracking-wide opacity-60">
+                    bus
+                    {recommendedAnalysis.confidence &&
+                      ` · ${CONFIDENCE_LABEL[recommendedAnalysis.confidence]}`}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
-          {recommendedAnalysis.busSeconds !== null && (
-            <>
-              <div className="text-2xl font-light opacity-40">·</div>
-              <div className="text-center">
-                <p className="text-2xl font-bold tabular-nums">
-                  {formatCountdown(recommendedAnalysis.busSeconds)}
+
+          {/* Quantile dotplot — when the bus arrives, vs. when you'd reach the stop */}
+          {recommendedAnalysis.busSeconds !== null &&
+            recommendedAnalysis.busSecondsLow !== null &&
+            recommendedAnalysis.busSecondsHigh !== null && (
+              <div className="mt-3 w-56 max-w-[70vw]">
+                <EtaDotplot
+                  busSeconds={recommendedAnalysis.busSeconds}
+                  busSecondsLow={recommendedAnalysis.busSecondsLow}
+                  busSecondsHigh={recommendedAnalysis.busSecondsHigh}
+                  walkSeconds={recommendedAnalysis.walkSeconds}
+                />
+                <p className="mt-0.5 text-center text-[10px] uppercase tracking-wide opacity-50">
+                  bus arrival likelihood · line = you arrive
                 </p>
-                <p className="text-xs uppercase tracking-wide opacity-60">bus</p>
               </div>
-            </>
-          )}
+            )}
         </div>
       )}
 

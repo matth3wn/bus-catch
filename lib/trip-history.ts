@@ -64,6 +64,7 @@ export class TripSession {
   private startTime: number | null = null;
   private direction: "northbound" | "southbound" = "southbound";
   private maxRouteProgress = 0;
+  private totalRouteDistance = 0;
   private speedSamples: number[] = [];
   private busCaught = false;
   private catchStop: string | null = null;
@@ -90,6 +91,10 @@ export class TripSession {
 
     if (params.direction) {
       this.direction = params.direction;
+    }
+
+    if (params.totalRouteDistance > 0) {
+      this.totalRouteDistance = params.totalRouteDistance;
     }
 
     this.maxRouteProgress = Math.max(
@@ -153,7 +158,7 @@ export class TripSession {
       direction: this.direction,
       busCaught: this.busCaught,
       catchStop: this.catchStop,
-      distanceWalked: this.maxRouteProgress * 1609, // approximate
+      distanceWalked: this.maxRouteProgress * this.totalRouteDistance,
       avgSpeed,
       dataSource: this.dataSource,
       durationSeconds: Math.round((endTime - this.startTime) / 1000),

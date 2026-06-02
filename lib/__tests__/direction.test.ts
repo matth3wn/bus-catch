@@ -82,3 +82,28 @@ describe("detectDirection", () => {
     expect(detectDirection(samples)).toBe("northbound");
   });
 });
+
+describe("detectDirection — hysteresis", () => {
+  it("holds the current direction when movement is below the flip threshold", () => {
+    // ~33m north (above acquire threshold, below the 60m flip threshold).
+    const samples = makeSamples(34.130, 34.13030, 4);
+    // Already southbound: a small northward wobble must not flip it.
+    expect(detectDirection(samples, "southbound")).toBe("southbound");
+  });
+
+  it("flips direction when movement clearly exceeds the flip threshold", () => {
+    // ~78m north (> 60m flip threshold).
+    const samples = makeSamples(34.130, 34.13070, 4);
+    expect(detectDirection(samples, "southbound")).toBe("northbound");
+  });
+
+  it("keeps the held direction with too few samples instead of returning null", () => {
+    const samples = makeSamples(34.124, 34.135, 2);
+    expect(detectDirection(samples, "northbound")).toBe("northbound");
+  });
+
+  it("does not flip when candidate matches the held direction", () => {
+    const samples = makeSamples(34.130, 34.13070, 4); // strong north
+    expect(detectDirection(samples, "northbound")).toBe("northbound");
+  });
+});
